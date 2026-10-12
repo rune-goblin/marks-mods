@@ -34,6 +34,12 @@
         "noSource": "The spell or wand behind this barrage is gone.",
         "noCast": "The cast did not go through, so no missiles were fired."
       }
+    },
+    "glimpse": {
+      "warn": {
+        "noTarget": "Target a creature, then cast Glimpse Weakness again.",
+        "noEffect": "The Glimpse Weakness effect is missing from the Mark's Mods Effects compendium."
+      }
     }
   }
 }

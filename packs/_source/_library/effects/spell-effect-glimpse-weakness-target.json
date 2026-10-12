@@ -1,0 +1,84 @@
+{
+  "_id": "mmGlimpseTarget0",
+  "_key": "!items!mmGlimpseTarget0",
+  "name": "Spell Effect: Glimpse Weakness (Target)",
+  "type": "effect",
+  "img": "systems/pf2e/icons/spells/glimpse-weakness.webp",
+  "system": {
+    "slug": "spell-effect-glimpse-weakness-target",
+    "description": {
+      "value": "<p>Granted by @UUID[Compendium.pf2e.spells-srd.Item.Glimpse Weakness]</p>\n<p>The next Strike that hits this creature deals additional precision damage, and then the spell ends. The damage is 1 + the spell's rank. An amped cast deals 1d4+1 instead, plus another 1d4+1 for every 2 ranks above 1st.</p>"
+    },
+    "duration": {
+      "expiry": "turn-start",
+      "sustained": false,
+      "unit": "minutes",
+      "value": 1
+    },
+    "level": {
+      "value": 1
+    },
+    "publication": {
+      "license": "ORC",
+      "remaster": true,
+      "title": "Pathfinder Dark Archive (Remastered)"
+    },
+    "rules": [
+      {
+        "key": "EphemeralEffect",
+        "affects": "origin",
+        "selectors": [
+          "strike-damage"
+        ],
+        "uuid": "Compendium.marks-mods.effects.Item.mmGlimpseAttack0",
+        "adjustName": false,
+        "predicate": [
+          {
+            "not": "parent:tag:amped"
+          }
+        ],
+        "alterations": [
+          {
+            "mode": "override",
+            "property": "badge-value",
+            "value": "1 + @item.level"
+          }
+        ]
+      },
+      {
+        "key": "EphemeralEffect",
+        "affects": "origin",
+        "selectors": [
+          "strike-damage"
+        ],
+        "uuid": "Compendium.marks-mods.effects.Item.mmGlimpseAttack0",
+        "adjustName": false,
+        "predicate": [
+          "parent:tag:amped"
+        ],
+        "alterations": [
+          {
+            "mode": "override",
+            "property": "badge-value",
+            "value": "ceil(@item.level / 2)"
+          },
+          {
+            "mode": "add",
+            "property": "other-tags",
+            "value": "amped"
+          }
+        ]
+      }
+    ],
+    "start": {
+      "initiative": null,
+      "value": 0
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "traits": {
+      "value": []
+    }
+  }
+}

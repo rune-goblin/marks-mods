@@ -28,6 +28,13 @@
       "label": "Mark's Mods Macros",
       "path": "packs/macros",
       "type": "Macro"
+    },
+    {
+      "name": "effects",
+      "label": "Mark's Mods Effects",
+      "path": "packs/effects",
+      "type": "Item",
+      "system": "pf2e"
     }
   ],
   "relationships": {

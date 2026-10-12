@@ -1,0 +1,62 @@
+{
+  "_id": "mmGlimpseAttack0",
+  "_key": "!items!mmGlimpseAttack0",
+  "name": "Spell Effect: Glimpse Weakness (Attacker)",
+  "type": "effect",
+  "img": "systems/pf2e/icons/spells/glimpse-weakness.webp",
+  "system": {
+    "slug": "spell-effect-glimpse-weakness-attacker",
+    "badge": {
+      "type": "counter",
+      "value": 1
+    },
+    "description": {
+      "value": "<p>Granted by @UUID[Compendium.marks-mods.effects.Item.mmGlimpseTarget0] for the damage roll of a Strike against the creature it marks. The counter holds the precision damage, set from the spell's rank.</p>"
+    },
+    "duration": {
+      "expiry": null,
+      "sustained": false,
+      "unit": "unlimited",
+      "value": -1
+    },
+    "level": {
+      "value": 1
+    },
+    "publication": {
+      "license": "ORC",
+      "remaster": true,
+      "title": "Pathfinder Dark Archive (Remastered)"
+    },
+    "rules": [
+      {
+        "key": "FlatModifier",
+        "selector": "strike-damage",
+        "slug": "glimpse-weakness",
+        "damageCategory": "precision",
+        "value": "@item.badge.value"
+      },
+      {
+        "key": "DamageDice",
+        "selector": "strike-damage",
+        "slug": "glimpse-weakness",
+        "category": "precision",
+        "diceNumber": "@item.badge.value",
+        "dieSize": "d4",
+        "hideIfDisabled": true,
+        "predicate": [
+          "parent:tag:amped"
+        ]
+      }
+    ],
+    "start": {
+      "initiative": null,
+      "value": 0
+    },
+    "tokenIcon": {
+      "show": false
+    },
+    "traits": {
+      "value": []
+    }
+  }
+}
