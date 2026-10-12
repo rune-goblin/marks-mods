@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   AMPED_TAG,
+  GLIMPSE_SPELL,
   PRECISION_SLUG,
   TARGET_EFFECT,
   TARGET_EFFECT_SLUG,
   isAmped,
+  precisionDamage,
   readCast,
   spendsGlimpse,
 } from '@/glimpse/rules';
@@ -22,7 +24,7 @@ interface Rule {
 interface EffectSource {
   _id: string;
   _key: string;
-  system: { slug: string; badge?: { type: string }; rules: Rule[] };
+  system: { slug: string; description: { value: string }; badge?: { type: string }; rules: Rule[] };
 }
 
 function readJson<T>(path: string): T {
@@ -32,6 +34,7 @@ function readJson<T>(path: string): T {
 const EFFECTS = 'packs/_source/_library/effects';
 const target = readJson<EffectSource>(`${EFFECTS}/spell-effect-glimpse-weakness-target.json`);
 const attacker = readJson<EffectSource>(`${EFFECTS}/spell-effect-glimpse-weakness-attacker.json`);
+const lang = readJson<{ 'marks-mods': { glimpse: Record<string, Record<string, string>> } }>('lang/en.json');
 const manifest = readJson<{ id: string; packs: { name: string; type: string; system?: string }[] }>('module.json');
 
 const cast = {
@@ -90,6 +93,27 @@ describe('isAmped', () => {
   });
 });
 
+describe('precisionDamage', () => {
+  it.each([
+    [1, '2'],
+    [8, '9'],
+    [10, '11'],
+  ])('is 1 + rank for an unamped cast at rank %i', (rank, damage) => {
+    expect(precisionDamage(rank, false)).toBe(damage);
+  });
+
+  it.each([
+    [1, '1d4+1'],
+    [2, '1d4+1'],
+    [3, '2d4+2'],
+    [7, '4d4+4'],
+    [8, '4d4+4'],
+    [9, '5d4+5'],
+  ])('adds 1d4+1 every 2 ranks for an amped cast at rank %i', (rank, damage) => {
+    expect(precisionDamage(rank, true)).toBe(damage);
+  });
+});
+
 describe('spendsGlimpse', () => {
   const precision = { slug: PRECISION_SLUG, enabled: true, ignored: false };
 
@@ -125,6 +149,16 @@ describe('effects pack', () => {
   ])('keys the %s effect by its id', (_name, effect) => {
     expect(effect._id).toMatch(/^[A-Za-z0-9]{16}$/);
     expect(effect._key).toBe(`!items!${effect._id}`);
+  });
+
+  it('links the spell by its compendium id', () => {
+    expect(target.system.description.value).toContain(`@UUID[${GLIMPSE_SPELL}]`);
+  });
+
+  it('has the strings the script localizes', () => {
+    const { effect, warn } = lang['marks-mods'].glimpse;
+    expect(Object.keys(effect).sort()).toEqual(['amped', 'damage', 'granted', 'unamped']);
+    expect(Object.keys(warn).sort()).toEqual(['noEffect', 'noTarget']);
   });
 
   it('holds the target effect the script applies', () => {

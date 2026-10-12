@@ -2,9 +2,11 @@ import type { ActorPF2e, ChatMessagePF2e, EffectPF2e, TokenDocumentPF2e } from '
 import { MODULE_ID } from '@/constants';
 import {
   AMPED_TAG,
+  GLIMPSE_SPELL,
   TARGET_EFFECT,
   TARGET_EFFECT_SLUG,
   isAmped,
+  precisionDamage,
   readCast,
   spendsGlimpse,
   type GlimpseCast,
@@ -17,8 +19,20 @@ interface GlimpseFlag {
   amped: boolean;
 }
 
+function localize(key: string, data?: Record<string, string | number>): string {
+  const path = `${MODULE_ID}.glimpse.${key}`;
+  return data ? game.i18n.format(path, data) : game.i18n.localize(path);
+}
+
 function warn(key: string): void {
-  ui.notifications.warn(game.i18n.localize(`${MODULE_ID}.glimpse.warn.${key}`));
+  ui.notifications.warn(localize(`warn.${key}`));
+}
+
+function describe(cast: GlimpseCast, amped: boolean): string {
+  const granted = localize('effect.granted', { spell: `@UUID[${GLIMPSE_SPELL}]` });
+  const version = localize(amped ? 'effect.amped' : 'effect.unamped', { rank: cast.rank });
+  const damage = localize('effect.damage', { damage: precisionDamage(cast.rank, amped) });
+  return `<p>${granted}</p><p><strong>${version}</strong> ${damage}</p>`;
 }
 
 function targetedCreature(caster: string): string | null {
@@ -55,6 +69,7 @@ async function applyGlimpse(
   const source = foundry.utils.mergeObject(effect.toObject(), {
     _id: null,
     system: {
+      description: { value: describe(cast, amped) },
       level: { value: cast.rank },
       traits: { otherTags: amped ? [AMPED_TAG] : [] },
       context: {

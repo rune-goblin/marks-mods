@@ -4,6 +4,7 @@ export const TARGET_EFFECT = `Compendium.${MODULE_ID}.effects.Item.mmGlimpseTarg
 export const TARGET_EFFECT_SLUG = 'spell-effect-glimpse-weakness-target';
 export const PRECISION_SLUG = 'glimpse-weakness';
 export const AMPED_TAG = 'amped';
+export const GLIMPSE_SPELL = 'Compendium.pf2e.spells-srd.Item.cNnHV97gPqxJ3Rrr';
 
 const CAST_A_SPELL = 'origin:action:slug:cast-a-spell';
 const GLIMPSE_WEAKNESS = 'origin:item:slug:glimpse-weakness';
@@ -37,6 +38,13 @@ export function readCast({ casting, origin }: CastFlags): GlimpseCast | null {
 /** A feat's alternate amp replaces the spell's own, so that cast keeps the unamped damage. */
 export function isAmped(cast: GlimpseCast, casterOptions: Record<string, boolean | undefined> = {}): boolean {
   return cast.rollOptions.includes(AMPED) && !casterOptions[ALTERNATE_AMP];
+}
+
+// Mirrors the badge formulas in the target effect's rules, so the tooltip states what they roll.
+export function precisionDamage(rank: number, amped: boolean): string {
+  if (!amped) return String(1 + rank);
+  const steps = Math.ceil(rank / 2);
+  return `${steps}d4+${steps}`;
 }
 
 export function spendsGlimpse({ context, modifiers }: DamageFlags): boolean {

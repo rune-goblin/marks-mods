@@ -36,6 +36,12 @@
       }
     },
     "glimpse": {
+      "effect": {
+        "granted": "Granted by {spell}",
+        "unamped": "Unamped, rank {rank}.",
+        "amped": "Amped, rank {rank}.",
+        "damage": "The next Strike that hits this creature deals {damage} additional precision damage, and then the spell ends."
+      },
       "warn": {
         "noTarget": "Target a creature, then cast Glimpse Weakness again.",
         "noEffect": "The Glimpse Weakness effect is missing from the Mark's Mods Effects compendium."

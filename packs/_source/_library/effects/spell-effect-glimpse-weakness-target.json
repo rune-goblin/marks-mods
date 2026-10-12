@@ -7,7 +7,7 @@
   "system": {
     "slug": "spell-effect-glimpse-weakness-target",
     "description": {
-      "value": "<p>Granted by @UUID[Compendium.pf2e.spells-srd.Item.Glimpse Weakness]</p>\n<p>The next Strike that hits this creature deals additional precision damage, and then the spell ends. The damage is 1 + the spell's rank. An amped cast deals 1d4+1 instead, plus another 1d4+1 for every 2 ranks above 1st.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.spells-srd.Item.cNnHV97gPqxJ3Rrr]</p>\n<p>The next Strike that hits this creature deals additional precision damage, and then the spell ends. The damage is 1 + the spell's rank. An amped cast deals 1d4+1 instead, plus another 1d4+1 for every 2 ranks above 1st.</p>"
     },
     "duration": {
       "expiry": "turn-start",
