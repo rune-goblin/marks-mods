@@ -1,5 +1,39 @@
 {
   "marks-mods": {
-    "title": "Mark's Mods"
+    "title": "Mark's Mods",
+    "barrage": {
+      "effect": {
+        "name": "Wand of Shardstorm",
+        "description": "Granted by {wand}. At the start of each of your turns the wand releases missiles as the 1-action version of force barrage. Missiles per turn: {shards}."
+      },
+      "rank": "Rank {rank}",
+      "actions": "Actions",
+      "action": {
+        "1": "One action",
+        "2": "Two actions",
+        "3": "Three actions"
+      },
+      "turn": "Missiles this turn: {shards}",
+      "target": "Update Targets",
+      "count": "{assigned} / {total} missiles",
+      "countOne": "{assigned} / {total} missile",
+      "pick": "Target tokens, then press Update Targets",
+      "fewer": "One fewer missile at {name}",
+      "more": "One more missile at {name}",
+      "remove": "Remove {name}",
+      "fire": "Fire {total} missiles",
+      "fireOne": "Fire {total} missile",
+      "assign": "Assign {remaining} more",
+      "close": "Close",
+      "cancel": "Cancel the cast",
+      "unknownTarget": "Unknown creature",
+      "chatTarget": "Target: {name} · Missiles: {shards}",
+      "warn": {
+        "noTargets": "Target at least one token first.",
+        "tooMany": "You have more targets than missiles. Kept the first {total}.",
+        "noSource": "The spell or wand behind this barrage is gone.",
+        "noCast": "The cast did not go through, so no missiles were fired."
+      }
+    }
   }
 }

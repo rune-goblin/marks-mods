@@ -1,4 +1,5 @@
 import './styles.css';
+import { registerBarrage } from './barrage';
 import { MODULE_ID } from './constants';
 import { ExampleApp } from './ui/ExampleApp';
 
@@ -6,6 +7,8 @@ interface ModuleApi {
   version: string;
   open: () => void;
 }
+
+registerBarrage();
 
 Hooks.once('init', () => {
   console.log(`${MODULE_ID} | init`);

@@ -1,3 +1,12 @@
 .marks-mods {
   --marks-mods-accent: #6b21a8;
 }
+
+/* A frameless AppV2 element gets no `application` class, so Foundry gives it no layout or
+   stacking: without this it falls into the page flow beside the sidebar. */
+.marks-mods-barrage {
+  position: fixed;
+  z-index: 100;
+  width: max-content;
+  height: max-content;
+}
