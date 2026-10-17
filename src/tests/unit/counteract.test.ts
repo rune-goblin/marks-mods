@@ -6,6 +6,7 @@ import {
   degreeNeeded,
   effectCounteractDC,
   effectCounteractRank,
+  hazardCounteract,
   isCounteractSource,
   isEffectLevelClear,
   isSpellEffect,
@@ -94,6 +95,34 @@ describe('readCounteractCard', () => {
   it('rejects a message without pf2e flags', () => {
     expect(readCounteractCard({})).toBeNull();
     expect(readCounteractCard()).toBeNull();
+  });
+});
+
+describe('readCounteractCard from a hazard', () => {
+  const hazard = { uuid: 'Scene.vault.Token.trap.Actor.frozen', type: 'hazard' };
+
+  it.each([
+    ['an action card', {}],
+    ['a damage roll', { context: { type: 'damage-roll' }, origin: { actor: hazard.uuid, uuid: 'x', type: 'action' } }],
+  ])('reads %s a hazard speaks as counteracting the hazard', (_name, flags) => {
+    expect(readCounteractCard(flags, hazard)).toEqual({
+      kind: 'hazard',
+      originUuid: hazard.uuid,
+      actorUuid: hazard.uuid,
+    });
+  });
+
+  it('prefers the spell a hazard casts', () => {
+    expect(readCounteractCard(spellCast, hazard)?.kind).toBe('spell');
+  });
+
+  it('prefers the effect a hazard posts', () => {
+    expect(readCounteractCard(effectCard, hazard)?.kind).toBe('effect');
+  });
+
+  it('rejects a damage roll a creature speaks', () => {
+    const npc = { uuid: 'Actor.ogre', type: 'npc' };
+    expect(readCounteractCard({ context: { type: 'damage-roll' } }, npc)).toBeNull();
   });
 });
 
@@ -234,6 +263,72 @@ describe('skillCounteractRank', () => {
     [20, 10],
   ])('at roller level %i is rank %i', (level, rank) => {
     expect(skillCounteractRank(level)).toBe(rank);
+  });
+});
+
+describe('hazardCounteract', () => {
+  const frozenMoment =
+    '<p>@Check[thievery|dc:38|name:Disassemble Spell Components|traits:action:disable-a-device] (legendary) to ' +
+    "rapidly disassemble the spell's myriad components in a single blink of an eye; or " +
+    '@UUID[Compendium.pf2e.spells-srd.Item.Dispel Magic] (9th rank; counteract DC 36) to counteract the trap ' +
+    'before it triggers or to counteract the effect on one creature after the trap is triggered</p>';
+  const pharaohsWard =
+    '<p>@Check[thievery|dc:27|name:Remove the Lintel] (master) to painstakingly remove the lintel without ' +
+    'triggering the magic, or @UUID[Compendium.pf2e.spells-srd.Item.Dispel Magic] (4th rank; counteract DC 25) ' +
+    'to counteract the rune</p>';
+
+  it("reads Frozen Moment's rank and DC from its Disable text", () => {
+    expect(hazardCounteract({ disable: frozenMoment, level: 17 })).toEqual({
+      rank: 9,
+      dc: 36,
+      rankFromText: true,
+      dcFromText: true,
+    });
+  });
+
+  it("reads Pharaoh's Ward's DC 25 over the level-based 23", () => {
+    expect(hazardCounteract({ disable: pharaohsWard, level: 7 })).toEqual({
+      rank: 4,
+      dc: 25,
+      rankFromText: true,
+      dcFromText: true,
+    });
+  });
+
+  it('falls back to half the level and the level-based DC without numbers', () => {
+    const disable = '<p>@Check[thievery|dc:30] (expert) to jam the mechanism</p>';
+    expect(hazardCounteract({ disable, level: 9 })).toEqual({
+      rank: 5,
+      dc: 26,
+      rankFromText: false,
+      dcFromText: false,
+    });
+  });
+
+  it("does not read a Check's DC as the counteract DC", () => {
+    const disable = '<p>@Check[thievery|dc:38] (legendary) to disassemble, or counteract DC @Check[arcana|dc:40]</p>';
+    expect(hazardCounteract({ disable, level: 17 })).toMatchObject({ dc: 36, dcFromText: false });
+  });
+
+  it.each([
+    ['5th-level dispel magic', 5],
+    ['a rank 6 spell', 6],
+    ['7th level; counteraction DC 31', 7],
+  ])('reads the rank in "%s"', (disable, rank) => {
+    expect(hazardCounteract({ disable, level: 1 })).toMatchObject({ rank, rankFromText: true });
+  });
+
+  it('reads "counteraction DC"', () => {
+    expect(hazardCounteract({ disable: '7th level; counteraction DC 31', level: 1 }).dc).toBe(31);
+  });
+
+  it('falls back to rank 0 for a level-0 hazard without text', () => {
+    expect(hazardCounteract({ disable: '', level: 0 })).toEqual({
+      rank: 0,
+      dc: 14,
+      rankFromText: false,
+      dcFromText: false,
+    });
   });
 });
 

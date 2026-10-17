@@ -23,7 +23,14 @@ export type Degree = (typeof DEGREE)[keyof typeof DEGREE];
 
 export type CounteractCard =
   | { kind: 'spell'; originUuid: string; actorUuid: string; entryId: string; castRank: number }
-  | { kind: 'effect'; originUuid: string; actorUuid: string; entryId?: undefined; castRank?: undefined };
+  | { kind: 'effect'; originUuid: string; actorUuid: string; entryId?: undefined; castRank?: undefined }
+  | { kind: 'hazard'; originUuid: string; actorUuid: string; entryId?: undefined; castRank?: undefined };
+
+/** The actor a message speaks for, by uuid and actor type. */
+export interface CardSpeaker {
+  uuid: string;
+  type: string;
+}
 
 export interface SpellcastingDC {
   id: string;
@@ -37,7 +44,14 @@ interface CardFlags {
   origin?: { actor?: string; uuid?: string; type?: string; castRank?: number; rollOptions?: string[] } | null;
 }
 
-export function readCounteractCard({ context, casting, origin }: CardFlags = {}): CounteractCard | null {
+/** A spell cast or effect card wins; failing that, any card a hazard speaks counteracts the hazard. */
+export function readCounteractCard(flags: CardFlags = {}, speaker?: CardSpeaker | null): CounteractCard | null {
+  const card = readItemCard(flags);
+  if (card || speaker?.type !== 'hazard') return card;
+  return { kind: 'hazard', originUuid: speaker.uuid, actorUuid: speaker.uuid };
+}
+
+function readItemCard({ context, casting, origin }: CardFlags): CounteractCard | null {
   if (!origin?.actor || !origin.uuid) return null;
   if (context && context.type !== 'spell-cast') return null;
   const card = { originUuid: origin.uuid, actorUuid: origin.actor };
@@ -135,6 +149,41 @@ export function counteracts(degree: Degree, sourceRank: number, targetRank: numb
 export function degreeNeeded(sourceRank: number, targetRank: number): Degree | null {
   const degrees = [DEGREE.failure, DEGREE.success, DEGREE.criticalSuccess] as const;
   return degrees.find((degree) => counteracts(degree, sourceRank, targetRank)) ?? null;
+}
+
+export interface HazardCounteract {
+  rank: number;
+  dc: number;
+  rankFromText: boolean;
+  dcFromText: boolean;
+}
+
+/** Enricher syntax down to the text it renders, so `@Check[thievery|dc:38]` never reads as a DC. */
+function plainText(html: string | null | undefined): string {
+  return (html ?? '')
+    .replace(/@(\w+)\[([^\]]*)\](?:\{([^}]*)\})?/g, (_match, type: string, body: string, label?: string) => {
+      if (label !== undefined) return label;
+      return type === 'UUID' ? (body.split('.').pop() ?? '') : (body.split('|')[0] ?? '');
+    })
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+const HAZARD_RANK = /(\d+)(?:st|nd|rd|th)[- ](?:level|rank)|\brank (\d+)/i;
+const HAZARD_DC = /counteract(?:ion)? DC (\d+)/i;
+
+/** A hazard's counteract rank and DC from its Disable text, else from its level. */
+export function hazardCounteract({ disable, level }: { disable?: string | null; level: number }): HazardCounteract {
+  const text = plainText(disable);
+  const rankMatch = HAZARD_RANK.exec(text);
+  const dcMatch = HAZARD_DC.exec(text);
+  return {
+    rank: rankMatch ? Number(rankMatch[1] ?? rankMatch[2]) : halfUp(level),
+    dc: dcMatch ? Number(dcMatch[1]) : levelBasedDC(level),
+    rankFromText: !!rankMatch,
+    dcFromText: !!dcMatch,
+  };
 }
 
 export function isCounteractSource({

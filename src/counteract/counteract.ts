@@ -1,4 +1,11 @@
-import type { ActorPF2e, ChatMessagePF2e, ItemPF2e, SpellPF2e, SpellcastingEntryPF2e } from 'foundry-pf2e';
+import type {
+  ActorPF2e,
+  ChatMessagePF2e,
+  HazardPF2e,
+  ItemPF2e,
+  SpellPF2e,
+  SpellcastingEntryPF2e,
+} from 'foundry-pf2e';
 import { MODULE_ID } from '@/constants';
 import {
   DEGREE,
@@ -6,11 +13,13 @@ import {
   counteracts,
   effectCounteractDC,
   effectCounteractRank,
+  hazardCounteract,
   isCounteractSource,
   isEffectLevelClear,
   isSpellEffect,
   readCounteractCard,
   skillCounteractRank,
+  type CardSpeaker,
   type CounteractCard,
   type Degree,
   type SpellcastingDC,
@@ -111,10 +120,26 @@ export function rollerActor(): ActorPF2e | null {
   return canvas.tokens?.controlled[0]?.actor ?? game.user.character ?? null;
 }
 
+// fromUuidSync hands back a bare index entry for a compendium actor.
+function actorAt(uuid: string): ActorPF2e | null {
+  const actor = fromUuidSync(uuid, { strict: false });
+  return actor instanceof CONFIG.Actor.documentClass ? actor : null;
+}
+
+function cardSpeaker(message: ChatMessagePF2e): CardSpeaker | null {
+  const originActor = message.flags.pf2e.origin?.actor;
+  const actors = [message.actor, originActor ? actorAt(originActor) : null];
+  const actor = actors.find((candidate) => candidate?.isOfType('hazard')) ?? message.actor;
+  return actor ? { uuid: actor.uuid, type: actor.type } : null;
+}
+
+export function readCard(message: ChatMessagePF2e): CounteractCard | null {
+  return readCounteractCard(message.flags.pf2e, cardSpeaker(message));
+}
+
 /** The roller's view of the target: its name only, since the GM sets the rank and DC. */
 export function cardTargetName(message: ChatMessagePF2e, card: CounteractCard): string {
-  const name =
-    card.kind === 'spell' ? message.item?.name : fromUuidSync<ItemPF2e>(card.originUuid, { strict: false })?.name;
+  const name = card.kind === 'spell' ? message.item?.name : fromUuidSync(card.originUuid, { strict: false })?.name;
   return name ?? localize('unknownTarget');
 }
 
@@ -162,18 +187,41 @@ function effectRankBasis({
   return localize(fromSpell ? 'basis.spellEffect' : 'basis.effectLevel', { level });
 }
 
+type TargetValues = Pick<TargetSuggestion, 'rank' | 'rankBasis' | 'dc' | 'dcBasis'>;
+
+function hazardValues(hazard: HazardPF2e): TargetValues {
+  const { level } = hazard;
+  const { rank, dc, rankFromText, dcFromText } = hazardCounteract({ disable: hazard.system.details.disable, level });
+  const fromText = localize('basis.hazardText');
+  return {
+    rank,
+    rankBasis: rankFromText ? fromText : localize('basis.hazardLevel', { level }),
+    dc,
+    dcBasis: dcFromText ? fromText : localize('basis.levelDC', { level }),
+  };
+}
+
+function hazardTarget(card: Extract<CounteractCard, { kind: 'hazard' }>): TargetSuggestion {
+  const hazard = actorAt(card.originUuid);
+  if (!hazard?.isOfType('hazard')) return goneTarget();
+  return { name: hazard.name, img: hazard.img, gone: false, ...hazardValues(hazard) };
+}
+
 function effectTarget(card: Extract<CounteractCard, { kind: 'effect' }>): TargetSuggestion {
   const effect = fromUuidSync<ItemPF2e>(card.originUuid, { strict: false });
   if (!effect?.isOfType('effect')) return goneTarget();
 
-  const effectLevel = effect.system.level.value;
   const origin = effect.system.context?.origin;
+  // `effect.origin` alone falls back to the holder when the context names no actor.
+  const originActor = origin?.actor ? effect.origin : null;
+  const target = { name: effect.name, img: effect.img, gone: false };
+  if (originActor?.isOfType('hazard')) return { ...target, ...hazardValues(originActor) };
+
+  const effectLevel = effect.system.level.value;
   const originItem = origin?.item ? fromUuidSync<ItemPF2e>(origin.item, { strict: false }) : null;
   const originItemType = originItem?.type ?? null;
   const fromSpell =
     effect.system.fromSpell || isSpellEffect({ spellcasting: origin?.spellcasting, originItemType });
-  // `effect.origin` alone falls back to the holder when the context names no actor.
-  const originActor = origin?.actor ? effect.origin : null;
   const creature = originActor?.isOfType('creature') ? originActor : null;
   const clear = isEffectLevelClear({ level: effectLevel, fromSpell, originItemType });
   const level = clear || !creature ? effectLevel : null;
@@ -184,9 +232,7 @@ function effectTarget(card: Extract<CounteractCard, { kind: 'effect' }>): Target
 
   const usesCasterDC = fromSpell && casterDC !== null;
   return {
-    name: effect.name,
-    img: effect.img,
-    gone: false,
+    ...target,
     rank: effectCounteractRank({ level, fromSpell, creatureLevel }),
     rankBasis: effectRankBasis({ level, clear, fromSpell, creatureLevel }),
     dc: effectCounteractDC({ level, fromSpell, creatureLevel, casterDC }),
@@ -198,9 +244,16 @@ function effectTarget(card: Extract<CounteractCard, { kind: 'effect' }>): Target
 
 export function suggestTarget(cardId: string): TargetSuggestion {
   const message = game.messages.get(cardId);
-  const card = message ? readCounteractCard(message.flags.pf2e) : null;
+  const card = message ? readCard(message) : null;
   if (!message || !card) return goneTarget();
-  return card.kind === 'spell' ? spellTarget(message, card) : effectTarget(card);
+  switch (card.kind) {
+    case 'spell':
+      return spellTarget(message, card);
+    case 'effect':
+      return effectTarget(card);
+    case 'hazard':
+      return hazardTarget(card);
+  }
 }
 
 function bySpell(a: SpellSource, b: SpellSource): number {

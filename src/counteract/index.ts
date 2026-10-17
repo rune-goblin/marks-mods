@@ -1,8 +1,7 @@
 import type { ChatMessagePF2e } from 'foundry-pf2e';
 import { MODULE_ID } from '@/constants';
 import { CounteractApp } from '@/ui/CounteractApp';
-import { cardTargetName, rollerActor, skillRank, skillSources, spellSources, warn } from './counteract';
-import { readCounteractCard } from './rules';
+import { cardTargetName, readCard, rollerActor, skillRank, skillSources, spellSources, warn } from './counteract';
 import { registerSocket } from './socket';
 
 // v14's entry shape; the bundled typings still describe the deprecated name/condition/callback.
@@ -18,7 +17,7 @@ function messageOf(li: HTMLElement): ChatMessagePF2e | undefined {
 }
 
 async function openPicker(message: ChatMessagePF2e): Promise<void> {
-  const card = readCounteractCard(message.flags.pf2e);
+  const card = readCard(message);
   if (!card) return;
   const actor = rollerActor();
   if (!actor) {
@@ -48,7 +47,10 @@ export function registerCounteract(): void {
     options.push({
       label: `${MODULE_ID}.counteract.menu`,
       icon: 'fa-solid fa-shield-halved',
-      visible: (li) => !!readCounteractCard(messageOf(li)?.flags.pf2e),
+      visible: (li) => {
+        const message = messageOf(li);
+        return !!message && !!readCard(message);
+      },
       onClick: (_event, li) => {
         const message = messageOf(li);
         if (message) void openPicker(message);

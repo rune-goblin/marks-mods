@@ -77,7 +77,7 @@
         "target": "Target",
         "rank": "Counteract rank",
         "dc": "DC",
-        "gone": "That effect has already ended.",
+        "gone": "That target no longer exists.",
         "approve": "Approve",
         "refuse": "Refuse"
       },
@@ -87,6 +87,8 @@
         "effectLevel": "Half the effect's level {level}",
         "creatureLevel": "Half creature level {level}",
         "defaultLevel": "Default effect level {level}: adjust if needed",
+        "hazardText": "From the hazard's Disable entry",
+        "hazardLevel": "Half hazard level {level}",
         "casterDC": "The caster's spell DC",
         "levelDC": "Level-based DC for level {level}",
         "noCaster": "Caster not found: enter a DC"
