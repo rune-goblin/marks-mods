@@ -1,6 +1,7 @@
 import './styles.css';
 import { registerBarrage } from './barrage';
 import { MODULE_ID } from './constants';
+import { registerCounteract } from './counteract';
 import { registerGlimpse } from './glimpse';
 import { ExampleApp } from './ui/ExampleApp';
 
@@ -11,6 +12,7 @@ interface ModuleApi {
 
 registerBarrage();
 registerGlimpse();
+registerCounteract();
 
 Hooks.once('init', () => {
   console.log(`${MODULE_ID} | init`);

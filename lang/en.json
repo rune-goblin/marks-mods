@@ -46,6 +46,62 @@
         "noTarget": "Target a creature, then cast Glimpse Weakness again.",
         "noEffect": "The Glimpse Weakness effect is missing from the Mark's Mods Effects compendium."
       }
+    },
+    "counteract": {
+      "menu": "Counteract",
+      "title": "{name} counteracts",
+      "target": "Target",
+      "spells": "Spells",
+      "skills": "Skills",
+      "showAll": "Show all spells",
+      "rank": "Rank {rank}",
+      "slots": "×{count}",
+      "empty": "Turn on Show all spells to list every spell you can cast.",
+      "noSpells": "{name} has no spell left to cast.",
+      "waiting": "Waiting for the GM to approve {source}.",
+      "cancel": "Cancel",
+      "close": "Close",
+      "refused": "The GM refused the counteract request.",
+      "unknownTarget": "Unknown target",
+      "unknownSpell": "Unknown spell",
+      "needs": {
+        "1": "Counteracts on a failure",
+        "2": "Needs a success",
+        "3": "Needs a critical success",
+        "never": "Out of reach"
+      },
+      "review": {
+        "title": "Counteract request",
+        "from": "{user} asks, rolling as {actor}",
+        "source": "Source",
+        "target": "Target",
+        "rank": "Counteract rank",
+        "dc": "DC",
+        "gone": "That effect has already ended.",
+        "approve": "Approve",
+        "refuse": "Refuse"
+      },
+      "basis": {
+        "cast": "{name}, cast at rank {rank}",
+        "spellEffect": "Spell effect at level {level}",
+        "effectLevel": "Half the effect's level {level}",
+        "creatureLevel": "Half creature level {level}",
+        "casterDC": "The caster's spell DC",
+        "levelDC": "Level-based DC for level {level}",
+        "noCaster": "Caster not found: enter a DC"
+      },
+      "rollLabel": "Counteract Check: {target}",
+      "dcLabel": "{target} DC",
+      "note": {
+        "counteracted": "{target} (rank {rank}) is counteracted.",
+        "notCounteracted": "{target} (rank {rank}) is not counteracted."
+      },
+      "warn": {
+        "noActor": "Select a token or assign a character, then counteract again.",
+        "noGM": "A GM must be online to approve a counteract.",
+        "noSources": "{name} has no spells or skills to counteract with.",
+        "paidNoRoll": "{spell} is spent, but the counteract check was cancelled."
+      }
     }
   }
 }

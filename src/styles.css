@@ -4,7 +4,8 @@
 
 /* A frameless AppV2 element gets no `application` class, so Foundry gives it no layout or
    stacking: without this it falls into the page flow beside the sidebar. */
-.marks-mods-barrage {
+.marks-mods-barrage,
+.marks-mods-counteract {
   position: fixed;
   z-index: 100;
   width: max-content;

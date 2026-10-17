@@ -1,6 +1,4 @@
-import type { BarrageApp } from './BarrageApp';
-
-export function windowDrag(getApp: () => BarrageApp) {
+export function windowDrag(getApp: () => foundry.applications.api.ApplicationV2) {
   let dragging = $state(false);
   let startX = 0;
   let startY = 0;
