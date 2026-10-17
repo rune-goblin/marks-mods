@@ -52,8 +52,16 @@ Verified against `_pf2e-source` (PF2e master, 2026-09-25) and the installed PF2e
   sheet passes to `cast()`.
 - **Spell DC.** `actor.spellcasting.get(entryId)?.statistic?.dc.value`; `actor.getStatistic("spell-dc")`
   gives the actor's highest.
-- **Effect stages.** Afflictions are effects with a counter badge (`system.badge.value`).
-  The `affliction` item type throws in production builds.
+- **Effect stages.** Afflictions are effects with a counter badge and `fromSpell: false`; no core
+  effect carries stage labels or affliction traits. A spell effect's counter means something else
+  (Bless counts its aura's reach, Mirror Image its images). The `affliction` item type throws in
+  production builds.
+- **Conditions.** A condition dropped on a token goes through `actor.increaseCondition` with no
+  origin context (`module/actor/sheet/base.ts`), so nothing ties Slow's Slowed to the spell.
+  `ConditionPF2e#appliedBy` returns the item or condition that applied it (`system.references.parent`
+  or `flags.pf2e.grantedBy`). Spell descriptions link conditions as
+  `@UUID[Compendium.pf2e.conditionitems.Item.<id>]` (PF2e's pack build rewrites name links to ids),
+  and `game.pf2e.ConditionManager.conditions` is keyed by both slug and that uuid.
 - **Chat context menu.** `ChatLog#_getEntryContextOptions` fires `getChatMessageContextOptions`
   with the options array; each entry is `{ label, icon, visible(li), onClick(event, li) }` (v14
   build 369 and PF2e master; the old `{ name, condition, callback }` shape is deprecated, and the
@@ -63,6 +71,9 @@ Verified against `_pf2e-source` (PF2e master, 2026-09-25) and the installed PF2e
   takes the same `StatisticRollParameters` as the counteract statistic.
 - **Hero-point reroll.** PF2e deletes the roll message and posts a new one carrying only `pf2e`
   flags, so the module's counteract flag is lost and the degree may change. Wave 3 handles it.
+  `pf2e.reroll` names no message and PF2e can bail out after it. `Roll#clone` shares `options`, so
+  the reroll's `isReroll` and degree also land on the old roll. PF2e stores only the rolled
+  outcome's note in `context.notes` and the reroll re-filters those by the new outcome.
 
 ## Rules (pure, unit-tested)
 
@@ -115,7 +126,7 @@ Outcome, with source rank `s` and target rank `t`: critical success counteracts 
    payment stands and the module warns.
 6. All user-facing strings live under `marks-mods.counteract.*` in `lang/en.json`.
 7. Undo restores exactly what Apply changed: the deleted effect's `toObject()` with `keepId`, or
-   the previous badge value.
+   the previous badge value. Items the effect grants return under new ids.
 
 ## Judgment calls reserved for review
 
@@ -198,10 +209,15 @@ Rules additions (pure, tested, in `rules.ts`): the creature-level row of the tab
 - Candidates for Apply:
   - Effect card: the effect at `originUuid`.
   - Spell card: effects on the flag's `targets` tokens (else every token on the current scene)
-    whose `system.context.origin.item === originUuid`. With more than one candidate, or none,
-    a DialogV2 lists the targeted tokens' effects with the matches pre-checked, and the GM picks.
-- Apply removes each chosen effect, or lowers a counter-badge effect by one stage and removes it
-  at stage 1, then records `{ actorUuid, effectId, data | previousStage }[]` and `applied: true`
+    whose `system.context.origin.item === originUuid`, and conditions whose slug the spell's
+    description links. When the targets hold no candidate, the scene's tokens join them. With
+    exactly one candidate in total Apply ends it. With more than one, or none, or after widening,
+    a frameless picker (`src/ui/CounteractApplyApp.ts` on `SvelteWindow`, body
+    `src/ui/components/counteract/CounteractApply.svelte`) lists the targeted tokens' effects and
+    unlocked conditions (those no other item applied: `!appliedBy`) with the matches pre-checked,
+    and the GM picks.
+- Apply removes each chosen effect or condition (a valued condition goes whole), or lowers a
+  counter-badge effect that is not from a spell by one stage and removes it at stage 1, then records `{ actorUuid, effectId, data | previousStage }[]` and `applied: true`
   on the flag.
 - Hazard card: nothing to delete. Apply marks the flag `applied: true` and posts nothing else;
   the GM disables the hazard by hand. Undo clears it.

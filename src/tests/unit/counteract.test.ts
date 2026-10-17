@@ -13,17 +13,23 @@ import {
   isEffectLevelClear,
   isSpellEffect,
   levelBasedDC,
+  conditionSlugsIn,
   matchesSpell,
   needsPicker,
   readCounteractCard,
   readCounteractFlag,
+  rerollCreating,
+  rerollDeleting,
+  rerollStarted,
   rerolledFlag,
   restorePlan,
+  rollKey,
   skillCounteractRank,
   stageStep,
   storedCounteractTarget,
   undoRecord,
   type CounteractFlag,
+  type RerollTrack,
   type UndoEntry,
 } from '@/counteract/rules';
 
@@ -568,8 +574,89 @@ describe('needsPicker', () => {
     [0, true],
     [1, false],
     [2, true],
-  ])('with %i matches is %s', (matches, result) => {
-    expect(needsPicker(matches)).toBe(result);
+  ])('with %i candidates is %s', (candidates, result) => {
+    expect(needsPicker(candidates)).toBe(result);
+  });
+});
+
+describe('conditionSlugsIn', () => {
+  const SLOWED = 'Compendium.pf2e.conditionitems.Item.xYTAsEpcJE1Ccni3';
+  const conditions: Record<string, string> = { [SLOWED]: 'slowed' };
+  const slugOf = (uuid: string) => conditions[uuid];
+  const slow = [
+    '<p>You dilate the flow of time around the target, slowing its actions.</p>',
+    `<p><strong>Success</strong> The target is @UUID[${SLOWED}]{Slowed 1} for 1 round.</p>`,
+    `<p><strong>Failure</strong> The target is @UUID[${SLOWED}]{Slowed 1} for 1 minute.</p>`,
+    `<p><strong>Critical Failure</strong> The target is @UUID[${SLOWED}]{Slowed 2} for 1 minute.</p>`,
+  ].join('');
+
+  it('names Slowed once in the Slow spell', () => {
+    expect(conditionSlugsIn(slow, slugOf)).toEqual(['slowed']);
+  });
+
+  it('names nothing in a description without links', () => {
+    expect(conditionSlugsIn('<p>Deal 2d6 fire damage.</p>', slugOf)).toEqual([]);
+  });
+
+  it('ignores a link to anything but a condition', () => {
+    const heroism = '<p>Gain @UUID[Compendium.pf2e.spell-effects.Item.l9HRQggofFGIxEse]{Spell Effect: Heroism}.</p>';
+    expect(conditionSlugsIn(heroism, () => 'heroism')).toEqual([]);
+  });
+
+  it('skips a condition link that resolves to nothing', () => {
+    expect(conditionSlugsIn('@UUID[Compendium.pf2e.conditionitems.Item.missing0000000]', slugOf)).toEqual([]);
+  });
+
+  it('names nothing in an empty description', () => {
+    expect(conditionSlugsIn(null, slugOf)).toEqual([]);
+  });
+});
+
+describe('reroll tracking', () => {
+  const roll = { class: 'CheckRoll', options: { isReroll: false }, formula: '1d20 + 9', total: 21 };
+  const notes = JSON.stringify([{ selector: 'counteract-check', text: 'Slow (rank 3) is counteracted.' }]);
+  const started = rerollStarted<CounteractFlag>(rollKey(roll));
+  const deleted = { rollKey: rollKey(roll), flag: rolledFlag, notes };
+
+  it('reads a roll the same once PF2e has rewritten its shared options', () => {
+    expect(rollKey({ ...roll, options: { isReroll: true, degreeOfSuccess: 3 } })).toBe(rollKey(roll));
+  });
+
+  it('carries the flag of the message holding the rerolled roll', () => {
+    expect(rerollDeleting(started, deleted)).toEqual({ pending: null, carried: { flag: rolledFlag, notes } });
+  });
+
+  it('ignores the deletion of a message holding another roll', () => {
+    const other = rollKey({ ...roll, total: 7 });
+    expect(rerollDeleting(started, { ...deleted, rollKey: other })).toBe(started);
+  });
+
+  it('ignores a deletion when no reroll is under way', () => {
+    const idle: RerollTrack<CounteractFlag> = { pending: null, carried: null };
+    expect(rerollDeleting(idle, deleted)).toBe(idle);
+  });
+
+  it('carries nothing from a rerolled message without the flag', () => {
+    expect(rerollDeleting(started, { ...deleted, flag: null }).carried).toBeNull();
+  });
+
+  it('hands the flag to the reroll creation with the same notes', () => {
+    const carrying = rerollDeleting(started, deleted);
+    expect(rerollCreating(carrying, { notes })).toEqual({ track: { pending: null, carried: null }, flag: rolledFlag });
+  });
+
+  it('drops the flag at a reroll creation with other notes', () => {
+    const carrying = rerollDeleting(started, deleted);
+    expect(rerollCreating(carrying, { notes: '[]' })).toEqual({ track: { pending: null, carried: null }, flag: null });
+  });
+
+  it('writes nothing at a reroll creation with nothing carried', () => {
+    expect(rerollCreating(started, { notes }).flag).toBeNull();
+  });
+
+  it('forgets an abandoned reroll when the next one starts', () => {
+    const next = rerollStarted<CounteractFlag>(rollKey({ ...roll, total: 15 }));
+    expect(rerollDeleting(next, deleted)).toBe(next);
   });
 });
 
@@ -595,7 +682,17 @@ describe('stageStep', () => {
   });
 
   it('ends an expired counter outright, as PF2e does', () => {
-    expect(stageStep({ type: 'counter', value: 3, min: 1 }, true)).toEqual({ type: 'remove' });
+    expect(stageStep({ type: 'counter', value: 3, min: 1 }, { expired: true })).toEqual({ type: 'remove' });
+  });
+
+  it('ends a spell effect whose counter is no stage, such as Bless', () => {
+    const bless = { type: 'counter', value: 2, labels: ['15 ft.', '25 ft.', '35 ft.'] };
+    expect(stageStep(bless, { fromSpell: true })).toEqual({ type: 'remove' });
+  });
+
+  it('lowers an affliction effect such as Bogwid Fever', () => {
+    const bogwidFever = { type: 'counter', value: 3, max: 4 };
+    expect(stageStep(bogwidFever, { fromSpell: false })).toEqual({ type: 'lower', from: 3, to: 2 });
   });
 
   it.each([

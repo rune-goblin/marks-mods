@@ -8,8 +8,8 @@ export interface EffectChoice {
   uuid: string;
   name: string;
   img: string;
-  /** Its origin is the counteracted spell, so it starts checked. */
-  matched: boolean;
+  /** An effect whose origin is the spell, or a condition its description names; either starts checked. */
+  match: 'origin' | 'named' | null;
   step: StageStep;
 }
 
@@ -23,6 +23,8 @@ export interface HolderChoice {
 export interface ApplyChoice {
   spell: string;
   matched: boolean;
+  /** The targets held no candidate, so the viewed scene's tokens are listed too. */
+  widened: boolean;
   holders: HolderChoice[];
 }
 

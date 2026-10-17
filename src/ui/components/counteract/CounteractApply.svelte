@@ -7,9 +7,9 @@
   import Frame from './Frame.svelte';
 
   let { app }: { app: CounteractApplyApp } = $props();
-  const { spell, matched, holders } = untrack(() => app.choice);
+  const { spell, matched, widened, holders } = untrack(() => app.choice);
   const chosen = new SvelteSet(
-    holders.flatMap((holder) => holder.effects.filter((effect) => effect.matched).map((effect) => effect.uuid)),
+    holders.flatMap((holder) => holder.effects.filter((effect) => effect.match).map((effect) => effect.uuid)),
   );
 
   function toggle(uuid: string): void {
@@ -31,6 +31,8 @@
     <span>{t('apply.prompt', { spell })}</span>
     {#if !matched}
       <span class="muted">{t('apply.noMatch', { spell })}</span>
+    {:else if widened}
+      <span class="muted">{t('apply.widened', { spell })}</span>
     {/if}
   </div>
 
@@ -58,8 +60,8 @@
                   <span class="name">{effect.name}</span>
                   <span class="detail">{outcome(effect.step)}</span>
                 </span>
-                {#if effect.matched}
-                  <span class="match">{t('apply.match')}</span>
+                {#if effect.match}
+                  <span class="match">{t(`apply.${effect.match}`)}</span>
                 {/if}
               </button>
             </li>

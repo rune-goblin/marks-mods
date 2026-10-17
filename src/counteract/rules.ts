@@ -281,9 +281,24 @@ export function matchesSpell(effect: HeldEffect, spellUuid: string): boolean {
   return !!spellUuid && effect.originItem === spellUuid;
 }
 
-/** Apply ends a lone match outright; several matches, or none, go to the GM to choose. */
-export function needsPicker(matches: number): boolean {
-  return matches !== 1;
+// PF2e's pack build rewrites description links to ids, so a link names a condition only by uuid.
+const CONDITION_LINK = /@UUID\[(Compendium\.pf2e\.conditionitems\.Item\.[^\]]+)\]/g;
+
+/**
+ * The slugs of the conditions a spell's description links. A dropped condition carries no origin,
+ * so these are how Apply recognises the Slowed that Slow imposed.
+ */
+export function conditionSlugsIn(
+  description: string | null | undefined,
+  slugOf: (uuid: string) => string | null | undefined,
+): string[] {
+  const slugs = [...(description ?? '').matchAll(CONDITION_LINK)].map(([, uuid]) => slugOf(uuid));
+  return [...new Set(slugs.filter((slug): slug is string => !!slug))];
+}
+
+/** Apply ends a lone candidate outright; several candidates, or none, go to the GM to choose. */
+export function needsPicker(candidates: number): boolean {
+  return candidates !== 1;
 }
 
 export type StageStep = { type: 'remove' } | { type: 'lower'; from: number; to: number };
@@ -294,9 +309,16 @@ export interface BadgeState {
   min?: number | null;
 }
 
-/** As PF2e's EffectPF2e#decrease, except that stage 1 ends the effect even under a badge minimum of 0. */
-export function stageStep(badge: BadgeState | null | undefined, expired = false): StageStep {
-  if (expired || badge?.type !== 'counter' || typeof badge.value !== 'number') return { type: 'remove' };
+/**
+ * As PF2e's EffectPF2e#decrease, except that stage 1 ends the effect even under a badge minimum of 0.
+ * A spell effect's counter is no stage (Bless counts its aura's reach, Mirror Image its images), so
+ * counteracting the spell ends it whole.
+ */
+export function stageStep(
+  badge: BadgeState | null | undefined,
+  { expired = false, fromSpell = false }: { expired?: boolean; fromSpell?: boolean } = {},
+): StageStep {
+  if (expired || fromSpell || badge?.type !== 'counter' || typeof badge.value !== 'number') return { type: 'remove' };
   const lowest = Math.max(1, badge.min ?? 1);
   return badge.value <= lowest ? { type: 'remove' } : { type: 'lower', from: badge.value, to: badge.value - 1 };
 }
@@ -349,4 +371,45 @@ export function restorePlan<Data>(
     else group.reset.push({ effectId, stage: entry.previousStage });
   }
   return { groups: [...groups.values()], skipped };
+}
+
+/** The reroll a client is following, from `pf2e.reroll` to the replacement message's creation. */
+export interface RerollTrack<Flag> {
+  /** The rerolled roll's key, until the message holding it is deleted. */
+  pending: string | null;
+  carried: { flag: Flag; notes: string } | null;
+}
+
+export function rerollStarted<Flag>(rollKey: string): RerollTrack<Flag> {
+  return { pending: rollKey, carried: null };
+}
+
+/**
+ * A roll's identity without its options. PF2e's reroll clones the old roll, and Roll#clone shares
+ * the options object, so setting the clone's `isReroll` and degree rewrites the old roll's too.
+ */
+export function rollKey(rollJSON: object): string {
+  const { options: _options, ...identity } = rollJSON as Record<string, unknown>;
+  return JSON.stringify(identity);
+}
+
+/** Only the deletion of the message holding the rerolled roll picks up its flag. */
+export function rerollDeleting<Flag>(
+  track: RerollTrack<Flag>,
+  deleted: { rollKey: string | null; flag: Flag | null; notes: string },
+): RerollTrack<Flag> {
+  if (!track.pending || deleted.rollKey !== track.pending) return track;
+  return { pending: null, carried: deleted.flag ? { flag: deleted.flag, notes: deleted.notes } : null };
+}
+
+/**
+ * Any reroll creation ends what was carried; the carried flag goes only to the one whose PF2e
+ * notes match, since the reroll copies the old message's PF2e flags whole.
+ */
+export function rerollCreating<Flag>(
+  track: RerollTrack<Flag>,
+  created: { notes: string },
+): { track: RerollTrack<Flag>; flag: Flag | null } {
+  const flag = track.carried?.notes === created.notes ? track.carried.flag : null;
+  return { track: { ...track, carried: null }, flag };
 }

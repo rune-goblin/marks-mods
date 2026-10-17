@@ -1,9 +1,19 @@
-import type { ActorPF2e, ChatMessagePF2e, EffectPF2e, EffectSource, ItemPF2e, TokenDocumentPF2e } from 'foundry-pf2e';
+import type {
+  ActorPF2e,
+  ChatMessagePF2e,
+  ConditionPF2e,
+  EffectPF2e,
+  ItemPF2e,
+  ItemSourcePF2e,
+  TokenDocumentPF2e,
+} from 'foundry-pf2e';
 import { MODULE_ID } from '@/constants';
-import { CounteractApplyApp, type HolderChoice } from '@/ui/CounteractApplyApp';
+import { CounteractApplyApp, type EffectChoice, type HolderChoice } from '@/ui/CounteractApplyApp';
 import { FLAG, localize, warn } from './counteract';
 import {
   applyControl,
+  conditionSlugsIn,
+  isSpellEffect,
   matchesSpell,
   needsPicker,
   readCounteractFlag,
@@ -13,16 +23,19 @@ import {
   type ApplyControl,
   type CounteractFlag,
   type RestoreGroup,
+  type StageStep,
   type UndoEntry,
 } from './rules';
 
 type Effect = EffectPF2e<ActorPF2e>;
+type Ending = Effect | ConditionPF2e<ActorPF2e>;
+type Match = NonNullable<EffectChoice['match']>;
 
 interface Holder {
   actor: ActorPF2e;
   name: string;
   img: string;
-  effects: Effect[];
+  endings: Ending[];
 }
 
 const ICONS: Record<ApplyControl, string> = { apply: 'fa-shield-halved', undo: 'fa-rotate-left' };
@@ -39,99 +52,148 @@ function actorAt(uuid: string): ActorPF2e | null {
   return actor instanceof CONFIG.Actor.documentClass ? actor : null;
 }
 
-function holderOf(token: TokenDocumentPF2e): Holder | null {
-  const { actor } = token;
-  if (!actor) return null;
-  return { actor, name: token.name, img: token.texture.src ?? actor.img, effects: actor.itemTypes.effect };
+// A condition another item applied ends with that item, which the list already holds.
+function endingsOf(actor: ActorPF2e): Ending[] {
+  return [...actor.itemTypes.effect, ...actor.conditions.active.filter((condition) => !condition.appliedBy)];
 }
 
-/** The roller's targets, else every token on the viewed scene; a linked actor's tokens count once. */
-function holders(flag: CounteractFlag): Holder[] {
-  const targeted = flag.targets.flatMap((uuid) => {
-    const token = fromUuidSync(uuid, { strict: false });
-    return token instanceof CONFIG.Token.documentClass ? [token] : [];
-  });
-  const tokens = targeted.length ? targeted : [...(canvas.scene?.tokens ?? [])];
+function holdersOf(tokens: TokenDocumentPF2e[]): Holder[] {
   const byActor = new Map<string, Holder>();
   for (const token of tokens) {
-    const holder = holderOf(token);
-    if (holder && !byActor.has(holder.actor.uuid)) byActor.set(holder.actor.uuid, holder);
+    const { actor } = token;
+    if (!actor || byActor.has(actor.uuid)) continue;
+    const img = token.texture.src ?? actor.img;
+    byActor.set(actor.uuid, { actor, name: token.name, img, endings: endingsOf(actor) });
   }
   return [...byActor.values()];
 }
 
-async function cardEffect(flag: CounteractFlag): Promise<Effect[] | null> {
+function targetTokens(flag: CounteractFlag): TokenDocumentPF2e[] {
+  return flag.targets.flatMap((uuid) => {
+    const token = fromUuidSync(uuid, { strict: false });
+    return token instanceof CONFIG.Token.documentClass ? [token] : [];
+  });
+}
+
+function effectFromSpell(effect: Effect): boolean {
+  const origin = effect.system.context?.origin;
+  const originItemType = origin?.item ? (fromUuidSync<ItemPF2e>(origin.item, { strict: false })?.type ?? null) : null;
+  return effect.system.fromSpell || isSpellEffect({ spellcasting: origin?.spellcasting, originItemType });
+}
+
+function stepOf(ending: Ending): StageStep {
+  if (ending.isOfType('condition')) return { type: 'remove' };
+  return stageStep(ending.system.badge, { expired: ending.isExpired, fromSpell: effectFromSpell(ending) });
+}
+
+function namedConditions(spellUuid: string): Set<string> {
+  const spell = fromUuidSync(spellUuid, { strict: false });
+  if (!(spell instanceof CONFIG.Item.documentClass) || !spell.isOfType('spell')) return new Set();
+  const { conditions } = game.pf2e.ConditionManager;
+  // The map is keyed by slug and by compendium uuid alike.
+  const slugOf = (uuid: string) => conditions.get(uuid as Parameters<typeof conditions.get>[0])?.slug;
+  return new Set(conditionSlugsIn(spell.system.description.value, slugOf));
+}
+
+function matchOf(ending: Ending, spellUuid: string, named: Set<string>): Match | null {
+  if (ending.isOfType('condition')) return named.has(ending.slug) ? 'named' : null;
+  return matchesSpell({ originItem: ending.system.context?.origin.item }, spellUuid) ? 'origin' : null;
+}
+
+function matchesIn(holders: Holder[], spellUuid: string, named: Set<string>): Map<Ending, Match> {
+  const matches = new Map<Ending, Match>();
+  for (const ending of holders.flatMap((holder) => holder.endings)) {
+    const match = matchOf(ending, spellUuid, named);
+    if (match) matches.set(ending, match);
+  }
+  return matches;
+}
+
+function labelOf(ending: Ending): string {
+  return ending.isOfType('condition') && ending.value ? `${ending.name} ${ending.value}` : ending.name;
+}
+
+function choiceOf(holder: Holder, matches: Map<Ending, Match>): HolderChoice {
+  return {
+    key: holder.actor.uuid,
+    name: holder.name,
+    img: holder.img,
+    effects: holder.endings.map((ending) => ({
+      uuid: ending.uuid,
+      name: labelOf(ending),
+      img: ending.img,
+      match: matches.get(ending) ?? null,
+      step: stepOf(ending),
+    })),
+  };
+}
+
+async function cardEffect(flag: CounteractFlag): Promise<Ending[] | null> {
   const effect = await fromUuid<ItemPF2e>(flag.originUuid);
   if (effect?.isOfType('effect') && effect.actor) return [effect as Effect];
   warn('effectGone');
   return null;
 }
 
-function choiceOf(holder: Holder, matches: Set<Effect>): HolderChoice {
-  return {
-    key: holder.actor.uuid,
-    name: holder.name,
-    img: holder.img,
-    effects: holder.effects.map((effect) => ({
-      uuid: effect.uuid,
-      name: effect.name,
-      img: effect.img,
-      matched: matches.has(effect),
-      step: stageStep(effect.system.badge, effect.isExpired),
-    })),
-  };
-}
+/**
+ * Spell card candidates: effects whose origin is the spell, and conditions its description names.
+ * The roller's targets come first; when they hold no candidate, the viewed scene's tokens join them,
+ * and the GM confirms any candidate found there, since the roller did not target it.
+ */
+async function spellEndings(flag: CounteractFlag): Promise<Ending[] | null> {
+  const named = namedConditions(flag.originUuid);
+  const targeted = targetTokens(flag);
+  const scene = [...(canvas.scene?.tokens ?? [])];
+  let holders = holdersOf(targeted.length ? targeted : scene);
+  let matches = matchesIn(holders, flag.originUuid, named);
+  const widened = targeted.length > 0 && matches.size === 0;
+  if (widened) {
+    holders = holdersOf([...targeted, ...scene]);
+    matches = matchesIn(holders, flag.originUuid, named);
+  }
+  if (!widened && !needsPicker(matches.size)) return [...matches.keys()];
 
-async function spellEffects(flag: CounteractFlag): Promise<Effect[] | null> {
-  const found = holders(flag).filter((holder) => holder.effects.length);
-  const matches = new Set(
-    found.flatMap((holder) =>
-      holder.effects.filter((effect) =>
-        matchesSpell({ originItem: effect.system.context?.origin.item }, flag.originUuid),
-      ),
-    ),
-  );
-  if (!needsPicker(matches.size)) return [...matches];
-  if (!found.length) {
+  const listed = holders.filter((holder) => holder.endings.length);
+  if (!listed.length) {
     warn('noEffects');
     return null;
   }
-
-  const holdsMatch = (holder: Holder) => holder.effects.some((effect) => matches.has(effect));
-  const ordered = [...found.filter(holdsMatch), ...found.filter((holder) => !holdsMatch(holder))];
+  const holdsMatch = (holder: Holder) => holder.endings.some((ending) => matches.has(ending));
+  const ordered = [...listed.filter(holdsMatch), ...listed.filter((holder) => !holdsMatch(holder))];
   const spell = fromUuidSync(flag.originUuid, { strict: false })?.name ?? localize('unknownSpell');
   const chosen = await CounteractApplyApp.choose({
     spell,
     matched: matches.size > 0,
+    widened,
     holders: ordered.map((holder) => choiceOf(holder, matches)),
   });
   if (!chosen) return null;
-  const effects = found.flatMap((holder) => holder.effects);
-  const byUuid = new Map<string, Effect>(effects.map((effect) => [effect.uuid, effect]));
+  const endings = listed.flatMap((holder) => holder.endings);
+  const byUuid = new Map<string, Ending>(endings.map((ending) => [ending.uuid, ending]));
   return chosen.flatMap((uuid) => byUuid.get(uuid) ?? []);
 }
 
-function chosenEffects(flag: CounteractFlag): Promise<Effect[] | null> {
+function chosenEndings(flag: CounteractFlag): Promise<Ending[] | null> {
   switch (flag.kind) {
     case 'hazard':
       return Promise.resolve([]);
     case 'effect':
       return cardEffect(flag);
     case 'spell':
-      return spellEffects(flag);
+      return spellEndings(flag);
   }
 }
 
-async function endEffects(effects: Effect[]): Promise<UndoEntry[]> {
-  const byActor = new Map<ActorPF2e, Effect[]>();
-  for (const effect of effects) byActor.set(effect.actor, [...(byActor.get(effect.actor) ?? []), effect]);
+async function end(endings: Ending[]): Promise<UndoEntry[]> {
+  const byActor = new Map<ActorPF2e, Ending[]>();
+  for (const ending of endings) byActor.set(ending.actor, [...(byActor.get(ending.actor) ?? []), ending]);
 
   const undo: UndoEntry[] = [];
   for (const [actor, held] of byActor) {
-    const ended = held.map((effect) => ({
-      id: effect.id,
-      step: stageStep(effect.system.badge, effect.isExpired),
-      data: effect.toObject() as unknown as Record<string, unknown>,
+    const ended = held.map((ending) => ({
+      id: ending.id,
+      step: stepOf(ending),
+      data: ending.toObject() as unknown as Record<string, unknown>,
     }));
     const removals = ended.flatMap(({ id, step }) => (step.type === 'remove' ? [id] : []));
     const lowerings = ended.flatMap(({ id, step }) =>
@@ -144,13 +206,17 @@ async function endEffects(effects: Effect[]): Promise<UndoEntry[]> {
   return undo;
 }
 
-async function recreate(actor: ActorPF2e, create: RestoreGroup<Record<string, unknown>>['create']): Promise<void> {
-  const sources = create.map(({ data }) => data as unknown as EffectSource);
-  const starts = new Map(sources.map((source) => [source._id, source.system.start]));
+/** Recreates under the recorded ids; returns how many PF2e declined, e.g. to an immunity gained since. */
+async function recreate(actor: ActorPF2e, create: RestoreGroup<Record<string, unknown>>['create']): Promise<number> {
+  const sources = create.map(({ data }) => data as unknown as ItemSourcePF2e);
+  const starts = new Map(
+    sources.flatMap((source) => (source.type === 'effect' && source._id ? [[source._id, source.system.start]] : [])),
+  );
   // EffectPF2e#_preCreate restamps the start time, which would restart the effect's duration.
   // The preCreateItem hook runs after it, so the original start goes back in the same write.
   const hook = Hooks.on('preCreateItem', (item: ItemPF2e) => {
-    const start = item.parent?.uuid === actor.uuid ? starts.get(item.id) : undefined;
+    if (!item.isOfType('effect') || item.parent?.uuid !== actor.uuid) return;
+    const start = starts.get(item.id);
     if (start) item.updateSource({ system: { start } });
   });
   try {
@@ -158,6 +224,7 @@ async function recreate(actor: ActorPF2e, create: RestoreGroup<Record<string, un
   } finally {
     Hooks.off('preCreateItem', hook);
   }
+  return create.filter(({ effectId }) => !actor.items.has(effectId)).length;
 }
 
 async function restore(undo: UndoEntry[]): Promise<void> {
@@ -175,7 +242,7 @@ async function restore(undo: UndoEntry[]): Promise<void> {
       missed += create.length + reset.length;
       continue;
     }
-    if (create.length) await recreate(actor, create);
+    if (create.length) missed += await recreate(actor, create);
     if (reset.length) {
       const updates = reset.map(({ effectId, stage }) => ({ _id: effectId, system: { badge: { value: stage } } }));
       await actor.updateEmbeddedDocuments('Item', updates);
@@ -187,8 +254,8 @@ async function restore(undo: UndoEntry[]): Promise<void> {
 async function apply(messageId: string): Promise<void> {
   const flag = flagOf(game.messages.get(messageId));
   if (!flag?.counteracted || flag.applied) return;
-  const effects = await chosenEffects(flag);
-  if (!effects) return;
+  const chosen = await chosenEndings(flag);
+  if (!chosen) return;
 
   // The picker waits on the GM, and the roll may be rerolled or applied by another GM meanwhile.
   const message = game.messages.get(messageId);
@@ -198,9 +265,16 @@ async function apply(messageId: string): Promise<void> {
   }
   const current = flagOf(message);
   if (!current?.counteracted || current.applied) return;
-  const undo = await endEffects(effects);
+  // Deleting an id that is already gone makes the whole deletion throw partway through.
+  const endings = chosen.filter((ending) => ending.actor.items.get(ending.id) === ending);
+  if (chosen.length && !endings.length) {
+    warn('effectGone');
+    return;
+  }
+  const undo = await end(endings);
   await message.update({ flags: { [MODULE_ID]: { [FLAG]: { applied: true, undo } } } });
 }
+
 
 async function undo(messageId: string): Promise<void> {
   const message = game.messages.get(messageId);
