@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEGREE,
+  applyControl,
+  asDegree,
   casterSpellDC,
   counteracts,
   degreeNeeded,
@@ -11,9 +13,18 @@ import {
   isEffectLevelClear,
   isSpellEffect,
   levelBasedDC,
+  matchesSpell,
+  needsPicker,
   readCounteractCard,
+  readCounteractFlag,
+  rerolledFlag,
+  restorePlan,
   skillCounteractRank,
+  stageStep,
   storedCounteractTarget,
+  undoRecord,
+  type CounteractFlag,
+  type UndoEntry,
 } from '@/counteract/rules';
 
 const spellOrigin = {
@@ -425,5 +436,239 @@ describe('isCounteractSource', () => {
 
   it('rejects a spell with neither the flag nor a description', () => {
     expect(isCounteractSource({})).toBe(false);
+  });
+});
+
+const rolledFlag: CounteractFlag = {
+  card: 'slowCard',
+  kind: 'spell',
+  originUuid: 'Actor.witch.Item.slow',
+  source: { kind: 'skill', name: 'Arcana', slug: 'arcana' },
+  targetRank: 3,
+  sourceRank: 3,
+  dc: 24,
+  degree: DEGREE.success,
+  counteracted: true,
+  targets: ['Scene.s.Token.goblin'],
+  applied: false,
+  undo: [],
+};
+
+describe('readCounteractFlag', () => {
+  it('reads a roll flag written before Apply existed as unapplied', () => {
+    const { applied: _applied, undo: _undo, ...wave2 } = rolledFlag;
+    expect(readCounteractFlag(wave2)).toEqual(rolledFlag);
+  });
+
+  it('keeps the applied state and undo record', () => {
+    const undo: UndoEntry[] = [{ actorUuid: 'Actor.goblin', effectId: 'slowed', previousStage: 2 }];
+    expect(readCounteractFlag({ ...rolledFlag, applied: true, undo })).toMatchObject({ applied: true, undo });
+  });
+
+  it('reads an unknown degree as none', () => {
+    expect(readCounteractFlag({ ...rolledFlag, degree: 7 })?.degree).toBeNull();
+  });
+
+  it.each([
+    ['nothing', undefined],
+    ['a stored hazard target', { rank: 9, dc: 36 }],
+    ['an unknown card kind', { ...rolledFlag, kind: 'condition' }],
+    ['a fractional rank', { ...rolledFlag, targetRank: 2.5 }],
+    ['missing targets', { ...rolledFlag, targets: undefined }],
+  ])('rejects %s', (_name, raw) => {
+    expect(readCounteractFlag(raw)).toBeNull();
+  });
+});
+
+describe('asDegree', () => {
+  it.each([0, 1, 2, 3])('accepts %i', (degree) => {
+    expect(asDegree(degree)).toBe(degree);
+  });
+
+  it.each([-1, 4, 1.5, '2', null, undefined])('rejects %s', (value) => {
+    expect(asDegree(value)).toBeNull();
+  });
+});
+
+describe('applyControl', () => {
+  it('offers Apply to a GM on a counteracting roll', () => {
+    expect(applyControl(rolledFlag, true)).toBe('apply');
+  });
+
+  it('offers Undo once applied', () => {
+    expect(applyControl({ ...rolledFlag, applied: true }, true)).toBe('undo');
+  });
+
+  it('offers Undo on an applied roll a reroll turned into a failure', () => {
+    expect(applyControl({ ...rolledFlag, counteracted: false, applied: true }, true)).toBe('undo');
+  });
+
+  it('offers nothing on a roll that failed to counteract', () => {
+    expect(applyControl({ ...rolledFlag, counteracted: false }, true)).toBeNull();
+  });
+
+  it.each([
+    ['unapplied', false],
+    ['applied', true],
+  ])('offers a player nothing on an %s roll', (_name, applied) => {
+    expect(applyControl({ ...rolledFlag, applied }, false)).toBeNull();
+  });
+
+  it('offers nothing on a message without the flag', () => {
+    expect(applyControl(null, true)).toBeNull();
+  });
+});
+
+describe('rerolledFlag', () => {
+  it('recounts the result from the new degree', () => {
+    expect(rerolledFlag(rolledFlag, DEGREE.failure)).toMatchObject({ degree: DEGREE.failure, counteracted: false });
+  });
+
+  it('turns a failure into a counteract when the reroll succeeds', () => {
+    const failed = { ...rolledFlag, degree: DEGREE.failure, counteracted: false };
+    expect(rerolledFlag(failed, DEGREE.success)).toMatchObject({ degree: DEGREE.success, counteracted: true });
+  });
+
+  it('keeps the card, ranks, DC, targets and applied state', () => {
+    const undo: UndoEntry[] = [{ actorUuid: 'Actor.goblin', effectId: 'slowed', previousStage: 2 }];
+    const applied = { ...rolledFlag, applied: true, undo };
+    expect(rerolledFlag(applied, DEGREE.criticalFailure)).toEqual({
+      ...applied,
+      degree: DEGREE.criticalFailure,
+      counteracted: false,
+    });
+  });
+
+  it('counts a reroll with no degree as no counteract', () => {
+    expect(rerolledFlag(rolledFlag, null).counteracted).toBe(false);
+  });
+});
+
+describe('matchesSpell', () => {
+  it('matches an effect whose origin item is the spell', () => {
+    expect(matchesSpell({ originItem: 'Actor.witch.Item.slow' }, 'Actor.witch.Item.slow')).toBe(true);
+  });
+
+  it.each([
+    ['another spell', 'Actor.witch.Item.haste'],
+    ['the same spell on another caster', 'Actor.wizard.Item.slow'],
+    ['no origin item', null],
+    ['no context', undefined],
+  ])('rejects an effect from %s', (_name, originItem) => {
+    expect(matchesSpell({ originItem }, 'Actor.witch.Item.slow')).toBe(false);
+  });
+
+  it('never matches a blank spell uuid', () => {
+    expect(matchesSpell({ originItem: '' }, '')).toBe(false);
+  });
+});
+
+describe('needsPicker', () => {
+  it.each([
+    [0, true],
+    [1, false],
+    [2, true],
+  ])('with %i matches is %s', (matches, result) => {
+    expect(needsPicker(matches)).toBe(result);
+  });
+});
+
+describe('stageStep', () => {
+  it('lowers a counter badge one stage', () => {
+    expect(stageStep({ type: 'counter', value: 3, min: 1 })).toEqual({ type: 'lower', from: 3, to: 2 });
+  });
+
+  it('ends a counter badge at stage 1', () => {
+    expect(stageStep({ type: 'counter', value: 1, min: 1 })).toEqual({ type: 'remove' });
+  });
+
+  it('ends a counter badge at stage 1 even when its minimum is 0', () => {
+    expect(stageStep({ type: 'counter', value: 1, min: 0 })).toEqual({ type: 'remove' });
+  });
+
+  it('ends a counter badge at a minimum above 1', () => {
+    expect(stageStep({ type: 'counter', value: 2, min: 2 })).toEqual({ type: 'remove' });
+  });
+
+  it('reads a missing minimum as 1', () => {
+    expect(stageStep({ type: 'counter', value: 2 })).toEqual({ type: 'lower', from: 2, to: 1 });
+  });
+
+  it('ends an expired counter outright, as PF2e does', () => {
+    expect(stageStep({ type: 'counter', value: 3, min: 1 }, true)).toEqual({ type: 'remove' });
+  });
+
+  it.each([
+    ['no badge', null],
+    ['a value badge', { type: 'value', value: 4 }],
+    ['a formula badge', { type: 'formula', value: '1d4' }],
+  ])('ends an effect with %s', (_name, badge) => {
+    expect(stageStep(badge)).toEqual({ type: 'remove' });
+  });
+});
+
+describe('undoRecord', () => {
+  const slowed = { name: 'Slowed' };
+  const sickened = { name: 'Sickened' };
+
+  it('records a removed effect with its source', () => {
+    const ended = [{ id: 'slowed', step: { type: 'remove' as const }, data: slowed }];
+    expect(undoRecord('Actor.goblin', ended, new Set())).toEqual([
+      { actorUuid: 'Actor.goblin', effectId: 'slowed', data: slowed },
+    ]);
+  });
+
+  it('records a lowered effect with the stage it left', () => {
+    const ended = [{ id: 'poison', step: { type: 'lower' as const, from: 3, to: 2 }, data: sickened }];
+    expect(undoRecord('Actor.goblin', ended, new Set(['poison']))).toEqual([
+      { actorUuid: 'Actor.goblin', effectId: 'poison', previousStage: 3 },
+    ]);
+  });
+
+  it('leaves out an effect PF2e refused to delete', () => {
+    const ended = [
+      { id: 'slowed', step: { type: 'remove' as const }, data: slowed },
+      { id: 'granted', step: { type: 'remove' as const }, data: sickened },
+    ];
+    expect(undoRecord('Actor.goblin', ended, new Set(['granted'])).map((entry) => entry.effectId)).toEqual([
+      'slowed',
+    ]);
+  });
+});
+
+describe('restorePlan', () => {
+  const slowed = { name: 'Slowed' };
+  const undo: UndoEntry<typeof slowed>[] = [
+    { actorUuid: 'Actor.goblin', effectId: 'slowed', data: slowed },
+    { actorUuid: 'Actor.goblin', effectId: 'poison', previousStage: 3 },
+    { actorUuid: 'Actor.orc', effectId: 'slowed', data: slowed },
+  ];
+  const held = (entries: string[]) => (actorUuid: string, effectId: string) =>
+    entries.includes(`${actorUuid}.${effectId}`);
+
+  it('groups the writes by actor', () => {
+    expect(restorePlan(undo, held(['Actor.goblin.poison']))).toEqual({
+      groups: [
+        {
+          actorUuid: 'Actor.goblin',
+          create: [{ effectId: 'slowed', data: slowed }],
+          reset: [{ effectId: 'poison', stage: 3 }],
+        },
+        { actorUuid: 'Actor.orc', create: [{ effectId: 'slowed', data: slowed }], reset: [] },
+      ],
+      skipped: [],
+    });
+  });
+
+  it('skips an effect already back under its id', () => {
+    const { groups, skipped } = restorePlan(undo, held(['Actor.goblin.poison', 'Actor.orc.slowed']));
+    expect(groups.map((group) => group.actorUuid)).toEqual(['Actor.goblin']);
+    expect(skipped).toEqual([undo[2]]);
+  });
+
+  it('skips a lowered effect that has since gone', () => {
+    const { groups, skipped } = restorePlan(undo, held([]));
+    expect(groups[0].reset).toEqual([]);
+    expect(skipped).toEqual([undo[1]]);
   });
 });

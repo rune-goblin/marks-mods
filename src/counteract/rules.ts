@@ -21,6 +21,10 @@ const PHYSICAL_ITEM_TYPES = new Set([
 export const DEGREE = { criticalFailure: 0, failure: 1, success: 2, criticalSuccess: 3 } as const;
 export type Degree = (typeof DEGREE)[keyof typeof DEGREE];
 
+export function asDegree(value: unknown): Degree | null {
+  return value === 0 || value === 1 || value === 2 || value === 3 ? value : null;
+}
+
 export type CounteractCard =
   | { kind: 'spell'; originUuid: string; actorUuid: string; entryId: string; castRank: number }
   | { kind: 'effect'; originUuid: string; actorUuid: string; entryId?: undefined; castRank?: undefined }
@@ -205,4 +209,144 @@ export function isCounteractSource({
   description?: string | null;
 }): boolean {
   return !!counteraction || /counteract/i.test(description?.replace(/<[^>]*>/g, '') ?? '');
+}
+
+export type SourceRef =
+  | { kind: 'spell'; name: string; entryId: string; spellId: string; castRank: number; slotId?: number }
+  | { kind: 'skill'; name: string; slug: string };
+
+/** What Apply changed on one effect: the source it deleted, or the stage it lowered from. */
+export type UndoEntry<Data = Record<string, unknown>> =
+  | { actorUuid: string; effectId: string; data: Data }
+  | { actorUuid: string; effectId: string; previousStage: number };
+
+/** The roll message's record of a counteract, and of what the GM's Apply changed. */
+export interface CounteractFlag {
+  card: string;
+  kind: CounteractCard['kind'];
+  originUuid: string;
+  source: SourceRef;
+  targetRank: number;
+  sourceRank: number;
+  dc: number;
+  degree: Degree | null;
+  counteracted: boolean;
+  targets: string[];
+  applied: boolean;
+  undo: UndoEntry[];
+}
+
+const CARD_KINDS = new Set<unknown>(['spell', 'effect', 'hazard']);
+
+export function readCounteractFlag(raw: unknown): CounteractFlag | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const flag = raw as Partial<Record<keyof CounteractFlag, unknown>>;
+  const valid =
+    CARD_KINDS.has(flag.kind) &&
+    typeof flag.originUuid === 'string' &&
+    Number.isInteger(flag.sourceRank) &&
+    Number.isInteger(flag.targetRank) &&
+    typeof flag.counteracted === 'boolean' &&
+    Array.isArray(flag.targets);
+  if (!valid) return null;
+  return {
+    ...(raw as CounteractFlag),
+    degree: asDegree(flag.degree),
+    applied: flag.applied === true,
+    undo: Array.isArray(flag.undo) ? (flag.undo as UndoEntry[]) : [],
+  };
+}
+
+export type ApplyControl = 'apply' | 'undo';
+
+/** Undo outranks Apply, so the GM can still undo an applied roll that a reroll turned into a failure. */
+export function applyControl(flag: CounteractFlag | null, isGM: boolean): ApplyControl | null {
+  if (!isGM || !flag) return null;
+  if (flag.applied) return 'undo';
+  return flag.counteracted ? 'apply' : null;
+}
+
+/** A reroll keeps what Apply already changed, so Undo still restores it. */
+export function rerolledFlag(flag: CounteractFlag, degree: Degree | null): CounteractFlag {
+  const counteracted = degree !== null && counteracts(degree, flag.sourceRank, flag.targetRank);
+  return { ...flag, degree, counteracted };
+}
+
+export interface HeldEffect {
+  /** `system.context.origin.item` */
+  originItem?: string | null;
+}
+
+export function matchesSpell(effect: HeldEffect, spellUuid: string): boolean {
+  return !!spellUuid && effect.originItem === spellUuid;
+}
+
+/** Apply ends a lone match outright; several matches, or none, go to the GM to choose. */
+export function needsPicker(matches: number): boolean {
+  return matches !== 1;
+}
+
+export type StageStep = { type: 'remove' } | { type: 'lower'; from: number; to: number };
+
+export interface BadgeState {
+  type: string;
+  value: unknown;
+  min?: number | null;
+}
+
+/** As PF2e's EffectPF2e#decrease, except that stage 1 ends the effect even under a badge minimum of 0. */
+export function stageStep(badge: BadgeState | null | undefined, expired = false): StageStep {
+  if (expired || badge?.type !== 'counter' || typeof badge.value !== 'number') return { type: 'remove' };
+  const lowest = Math.max(1, badge.min ?? 1);
+  return badge.value <= lowest ? { type: 'remove' } : { type: 'lower', from: badge.value, to: badge.value - 1 };
+}
+
+export interface EndedEffect<Data> {
+  id: string;
+  step: StageStep;
+  data: Data;
+}
+
+/** A removal enters the record only once the effect is gone, since PF2e can refuse to delete a granted item. */
+export function undoRecord<Data>(
+  actorUuid: string,
+  ended: EndedEffect<Data>[],
+  remaining: ReadonlySet<string>,
+): UndoEntry<Data>[] {
+  return ended.flatMap(({ id, step, data }): UndoEntry<Data>[] => {
+    if (step.type === 'lower') return [{ actorUuid, effectId: id, previousStage: step.from }];
+    return remaining.has(id) ? [] : [{ actorUuid, effectId: id, data }];
+  });
+}
+
+export interface RestoreGroup<Data> {
+  actorUuid: string;
+  create: { effectId: string; data: Data }[];
+  reset: { effectId: string; stage: number }[];
+}
+
+/**
+ * Undo's writes per actor. An effect already back can't be recreated under its id, and a lowered
+ * effect that has since gone has no badge to reset; both land in `skipped`.
+ */
+export function restorePlan<Data>(
+  undo: UndoEntry<Data>[],
+  holds: (actorUuid: string, effectId: string) => boolean,
+): { groups: RestoreGroup<Data>[]; skipped: UndoEntry<Data>[] } {
+  const groups = new Map<string, RestoreGroup<Data>>();
+  const skipped: UndoEntry<Data>[] = [];
+  for (const entry of undo) {
+    const { actorUuid, effectId } = entry;
+    const held = holds(actorUuid, effectId);
+    const restores = 'data' in entry ? !held : held;
+    if (!restores) {
+      skipped.push(entry);
+      continue;
+    }
+    const group = groups.get(actorUuid) ?? { actorUuid, create: [], reset: [] };
+    groups.set(actorUuid, group);
+    if ('data' in entry) group.create.push({ effectId, data: entry.data });
+    else group.reset.push({ effectId, stage: entry.previousStage });
+  }
+  return { groups: [...groups.values()], skipped };
 }

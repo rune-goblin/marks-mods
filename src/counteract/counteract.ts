@@ -22,17 +22,15 @@ import {
   storedCounteractTarget,
   type CardSpeaker,
   type CounteractCard,
+  type CounteractFlag,
   type Degree,
+  type SourceRef,
   type SpellcastingDC,
 } from './rules';
 
-const FLAG = 'counteract';
+export const FLAG = 'counteract';
 export const STORED_TARGET_FLAG = 'counteractTarget';
 const NOTE_SELECTOR = 'counteract-check';
-
-export type SourceRef =
-  | { kind: 'spell'; name: string; entryId: string; spellId: string; castRank: number; slotId?: number }
-  | { kind: 'skill'; name: string; slug: string };
 
 export interface SpellSource {
   kind: 'spell';
@@ -94,19 +92,6 @@ export interface TargetSuggestion {
   rankBasis: string;
   dc: number | null;
   dcBasis: string;
-}
-
-interface CounteractFlag {
-  card: string;
-  kind: CounteractCard['kind'];
-  originUuid: string;
-  source: SourceRef;
-  targetRank: number;
-  sourceRank: number;
-  dc: number;
-  degree: Degree | null;
-  counteracted: boolean;
-  targets: string[];
 }
 
 export function localize(key: string, data?: Record<string, string | number>): string {
@@ -357,10 +342,11 @@ export async function rollCounteract(
   const ref = sourceRef(source);
   const name = foundry.utils.escapeHTML(approval.targetName);
   const targets = [...game.user.targets].map((token) => token.document.uuid);
+  const notes = rollNotes(approval);
   const common = {
     dc: { value: approval.dc, label: localize('dcLabel', { target: name }) },
     label: localize('rollLabel', { target: name }),
-    extraRollNotes: rollNotes(approval),
+    extraRollNotes: notes,
     callback: async (rolled: { degreeOfSuccess: Degree | null }, _outcome: unknown, message: ChatMessagePF2e) => {
       const degree = rolled.degreeOfSuccess;
       const flag: CounteractFlag = {
@@ -374,8 +360,12 @@ export async function rollCounteract(
         degree,
         counteracted: degree !== null && counteracts(degree, approval.sourceRank, approval.targetRank),
         targets,
+        applied: false,
+        undo: [],
       };
-      await message.update({ flags: { [MODULE_ID]: { [FLAG]: flag } } });
+      // PF2e stores only the rolled outcome's note, and a reroll shows the stored note matching
+      // its new outcome: with all four kept, a reroll that changes the degree still states the result.
+      await message.update({ flags: { [MODULE_ID]: { [FLAG]: flag }, pf2e: { context: { notes } } } });
     },
   };
 
