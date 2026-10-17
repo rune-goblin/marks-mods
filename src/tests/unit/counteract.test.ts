@@ -3,12 +3,15 @@ import {
   DEGREE,
   casterSpellDC,
   counteracts,
+  degreeNeeded,
   effectCounteractDC,
   effectCounteractRank,
   isCounteractSource,
+  isEffectLevelClear,
   isSpellEffect,
   levelBasedDC,
   readCounteractCard,
+  skillCounteractRank,
 } from '@/counteract/rules';
 
 const spellOrigin = {
@@ -178,6 +181,62 @@ describe('other effect', () => {
   });
 });
 
+describe('effect with an unclear level, from a creature', () => {
+  it.each([
+    [7, 4],
+    [8, 4],
+    [0, 0],
+    [-1, 0],
+  ])('from a level %i creature counteracts at rank %i', (creatureLevel, rank) => {
+    expect(effectCounteractRank({ level: null, fromSpell: false, creatureLevel })).toBe(rank);
+  });
+
+  it("uses the level-based DC for the creature's level", () => {
+    expect(effectCounteractDC({ level: null, fromSpell: false, creatureLevel: 7 })).toBe(23);
+  });
+
+  it('has no rank or DC without a creature', () => {
+    expect(effectCounteractRank({ level: null, fromSpell: false })).toBeNull();
+    expect(effectCounteractDC({ level: null, fromSpell: false, creatureLevel: null })).toBeNull();
+  });
+
+  it('ignores the creature when the effect has a level', () => {
+    expect(effectCounteractRank({ level: 5, fromSpell: false, creatureLevel: 12 })).toBe(3);
+    expect(effectCounteractDC({ level: 5, fromSpell: false, creatureLevel: 12 })).toBe(20);
+  });
+});
+
+describe('isEffectLevelClear', () => {
+  it.each([
+    ['a level above PF2e default', { level: 4, fromSpell: false, originItemType: 'action' }],
+    ['a level-1 spell effect', { level: 1, fromSpell: true, originItemType: 'spell' }],
+    ['a level-1 effect from a consumable', { level: 1, fromSpell: false, originItemType: 'consumable' }],
+    ['a level-0 effect', { level: 0, fromSpell: false, originItemType: null }],
+  ])('trusts %s', (_name, effect) => {
+    expect(isEffectLevelClear(effect)).toBe(true);
+  });
+
+  it.each([
+    ['a creature ability', 'action'],
+    ['a feat', 'feat'],
+    ['no origin item', null],
+  ])('doubts a level-1 effect from %s', (_name, originItemType) => {
+    expect(isEffectLevelClear({ level: 1, fromSpell: false, originItemType })).toBe(false);
+  });
+});
+
+describe('skillCounteractRank', () => {
+  it.each([
+    [-1, 0],
+    [0, 0],
+    [1, 1],
+    [7, 4],
+    [20, 10],
+  ])('at roller level %i is rank %i', (level, rank) => {
+    expect(skillCounteractRank(level)).toBe(rank);
+  });
+});
+
 describe('levelBasedDC', () => {
   it.each([
     [-1, 13],
@@ -210,6 +269,22 @@ describe('counteracts', () => {
     ['critical failure', DEGREE.criticalFailure, 1, false],
   ] as const)('a %s from rank 4 against rank %i counteracts: %s', (_name, degree, targetRank, result) => {
     expect(counteracts(degree, 4, targetRank)).toBe(result);
+  });
+});
+
+describe('degreeNeeded', () => {
+  it.each([
+    ['a failure', 3, DEGREE.failure],
+    ['a success', 4, DEGREE.success],
+    ['a success', 5, DEGREE.success],
+    ['a critical success', 6, DEGREE.criticalSuccess],
+    ['a critical success', 7, DEGREE.criticalSuccess],
+  ] as const)('from rank 4 is %s against rank %i', (_name, targetRank, degree) => {
+    expect(degreeNeeded(4, targetRank)).toBe(degree);
+  });
+
+  it('is nothing when even a critical success falls short', () => {
+    expect(degreeNeeded(4, 8)).toBeNull();
   });
 });
 

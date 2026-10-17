@@ -4,6 +4,19 @@ const CAST_A_SPELL = 'origin:action:slug:cast-a-spell';
 const LEVEL_DCS = [13, 14, 15, 16, 18, 19, 20, 22, 23, 24, 26, 27, 28, 30, 31, 32, 34, 35, 36, 38, 39, 40, 42, 44, 46, 48, 50];
 const MIN_LEVEL = -1;
 const MAX_LEVEL = 25;
+const DEFAULT_EFFECT_LEVEL = 1;
+// PF2e's PHYSICAL_ITEM_TYPES (src/module/item/physical/values.ts).
+const PHYSICAL_ITEM_TYPES = new Set([
+  'ammo',
+  'armor',
+  'backpack',
+  'book',
+  'consumable',
+  'equipment',
+  'shield',
+  'treasure',
+  'weapon',
+]);
 
 export const DEGREE = { criticalFailure: 0, failure: 1, success: 2, criticalSuccess: 3 } as const;
 export type Degree = (typeof DEGREE)[keyof typeof DEGREE];
@@ -48,20 +61,49 @@ export function isSpellEffect({
   return !!spellcasting || originItemType === 'spell';
 }
 
-export function effectCounteractRank({ level, fromSpell }: { level: number; fromSpell: boolean }): number {
-  return fromSpell ? level : Math.max(0, Math.ceil(level / 2));
+interface EffectLevels {
+  /** Null when the effect's own level is unclear. */
+  level: number | null;
+  fromSpell: boolean;
+  /** The level of the creature the effect came from, used when `level` is null. */
+  creatureLevel?: number | null;
+}
+
+/** PF2e gives an effect level 1 unless something sets it, so only a spell or an item vouches for level 1. */
+export function isEffectLevelClear({
+  level,
+  fromSpell,
+  originItemType,
+}: {
+  level: number;
+  fromSpell: boolean;
+  originItemType?: string | null;
+}): boolean {
+  return level !== DEFAULT_EFFECT_LEVEL || fromSpell || PHYSICAL_ITEM_TYPES.has(originItemType ?? '');
+}
+
+export function effectCounteractRank({ level, fromSpell, creatureLevel }: EffectLevels): number | null {
+  if (level !== null) return fromSpell ? level : halfUp(level);
+  return creatureLevel == null ? null : halfUp(creatureLevel);
 }
 
 export function effectCounteractDC({
   level,
   fromSpell,
+  creatureLevel,
   casterDC,
-}: {
-  level: number;
-  fromSpell: boolean;
-  casterDC?: number | null;
-}): number {
-  return (fromSpell ? casterDC : null) ?? levelBasedDC(level);
+}: EffectLevels & { casterDC?: number | null }): number | null {
+  if (fromSpell && casterDC != null) return casterDC;
+  const basis = level ?? creatureLevel;
+  return basis == null ? null : levelBasedDC(basis);
+}
+
+export function skillCounteractRank(level: number): number {
+  return halfUp(level);
+}
+
+function halfUp(level: number): number {
+  return Math.max(0, Math.ceil(level / 2));
 }
 
 export function casterSpellDC(
@@ -88,6 +130,11 @@ export function counteracts(degree: Degree, sourceRank: number, targetRank: numb
     default:
       return false;
   }
+}
+
+export function degreeNeeded(sourceRank: number, targetRank: number): Degree | null {
+  const degrees = [DEGREE.failure, DEGREE.success, DEGREE.criticalSuccess] as const;
+  return degrees.find((degree) => counteracts(degree, sourceRank, targetRank)) ?? null;
 }
 
 export function isCounteractSource({
