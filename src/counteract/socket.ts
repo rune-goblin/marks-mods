@@ -15,16 +15,25 @@ export interface PendingRequest {
   cancel(): void;
 }
 
-const waiting = new Map<string, (reply: Reply) => void>();
+interface Waiting {
+  gmId: string;
+  resolve: (reply: Reply) => void;
+}
+
+const waiting = new Map<string, Waiting>();
 
 function emit(message: SocketMessage, recipient: string): void {
   game.socket.emit(CHANNEL, message, { recipients: [recipient] });
 }
 
 function settle(requestId: string, reply: Reply): void {
-  const resolve = waiting.get(requestId);
+  const entry = waiting.get(requestId);
   waiting.delete(requestId);
-  resolve?.(reply);
+  entry?.resolve(reply);
+}
+
+function wait(requestId: string, gmId: string): Promise<Reply> {
+  return new Promise<Reply>((resolve) => waiting.set(requestId, { gmId, resolve }));
 }
 
 function toReply(approval: Approval | null): Reply {
@@ -35,7 +44,7 @@ function toReply(approval: Approval | null): Reply {
 export function sendRequest(request: CounteractRequest): PendingRequest | null {
   const { requestId } = request;
   if (game.user.isGM) {
-    const reply = new Promise<Reply>((resolve) => waiting.set(requestId, resolve));
+    const reply = wait(requestId, game.user.id);
     CounteractReviewApp.open(request, (approval) => settle(requestId, toReply(approval)));
     return {
       reply,
@@ -51,7 +60,7 @@ export function sendRequest(request: CounteractRequest): PendingRequest | null {
     warn('noGM');
     return null;
   }
-  const reply = new Promise<Reply>((resolve) => waiting.set(requestId, resolve));
+  const reply = wait(requestId, gm.id);
   emit({ type: 'request', request }, gm.id);
   return {
     reply,
@@ -84,8 +93,20 @@ function onMessage(message: SocketMessage, senderId: string): void {
   }
 }
 
+// A client that reloads or drops never closes its windows, so nothing answers for it.
+function onUserConnected(user: User, connected: boolean): void {
+  if (connected) return;
+  CounteractReviewApp.dismissFor(user.id);
+  for (const [requestId, { gmId }] of waiting) {
+    if (gmId !== user.id) continue;
+    settle(requestId, { type: 'cancel' });
+    warn('gmLeft');
+  }
+}
+
 export function registerSocket(): void {
   Hooks.once('ready', () => {
     game.socket.on(CHANNEL, onMessage);
   });
+  Hooks.on('userConnected', onUserConnected);
 }

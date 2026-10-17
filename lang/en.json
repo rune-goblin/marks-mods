@@ -86,6 +86,7 @@
         "spellEffect": "Spell effect at level {level}",
         "effectLevel": "Half the effect's level {level}",
         "creatureLevel": "Half creature level {level}",
+        "defaultLevel": "Default effect level {level}: adjust if needed",
         "casterDC": "The caster's spell DC",
         "levelDC": "Level-based DC for level {level}",
         "noCaster": "Caster not found: enter a DC"
@@ -100,7 +101,8 @@
         "noActor": "Select a token or assign a character, then counteract again.",
         "noGM": "A GM must be online to approve a counteract.",
         "noSources": "{name} has no spells or skills to counteract with.",
-        "paidNoRoll": "{spell} is spent, but the counteract check was cancelled."
+        "paidNoRoll": "{spell} is spent, but the counteract check was cancelled.",
+        "gmLeft": "The GM left before answering your counteract request."
       }
     }
   }

@@ -41,6 +41,12 @@ export class CounteractReviewApp extends SvelteWindow {
     void app.close();
   }
 
+  static dismissFor(userId: string): void {
+    for (const app of [...CounteractReviewApp.#reviews.values()]) {
+      if (app.request.userId === userId) CounteractReviewApp.dismiss(app.request.requestId, userId);
+    }
+  }
+
   approve(approval: Approval): Promise<this> {
     this.#answer(approval);
     return this.close();

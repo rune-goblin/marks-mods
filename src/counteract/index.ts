@@ -25,10 +25,6 @@ async function openPicker(message: ChatMessagePF2e): Promise<void> {
     warn('noActor');
     return;
   }
-  if (!game.user.isGM && !game.users.activeGM) {
-    warn('noGM');
-    return;
-  }
   const spells = await spellSources(actor);
   const skills = skillSources(actor);
   if (!spells.length && !skills.length) {

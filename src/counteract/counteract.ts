@@ -146,6 +146,22 @@ function spellTarget(message: ChatMessagePF2e, card: Extract<CounteractCard, { k
   };
 }
 
+function effectRankBasis({
+  level,
+  clear,
+  fromSpell,
+  creatureLevel,
+}: {
+  level: number | null;
+  clear: boolean;
+  fromSpell: boolean;
+  creatureLevel: number | null;
+}): string {
+  if (level === null) return localize('basis.creatureLevel', { level: creatureLevel ?? 0 });
+  if (!clear) return localize('basis.defaultLevel', { level });
+  return localize(fromSpell ? 'basis.spellEffect' : 'basis.effectLevel', { level });
+}
+
 function effectTarget(card: Extract<CounteractCard, { kind: 'effect' }>): TargetSuggestion {
   const effect = fromUuidSync<ItemPF2e>(card.originUuid, { strict: false });
   if (!effect?.isOfType('effect')) return goneTarget();
@@ -166,17 +182,13 @@ function effectTarget(card: Extract<CounteractCard, { kind: 'effect' }>): Target
     ? casterSpellDC(spellcastingDCs(originActor), { tradition: origin?.spellcasting?.tradition })
     : null;
 
-  const rankBasis =
-    level === null
-      ? localize('basis.creatureLevel', { level: creatureLevel ?? 0 })
-      : localize(fromSpell ? 'basis.spellEffect' : 'basis.effectLevel', { level });
   const usesCasterDC = fromSpell && casterDC !== null;
   return {
     name: effect.name,
     img: effect.img,
     gone: false,
     rank: effectCounteractRank({ level, fromSpell, creatureLevel }),
-    rankBasis,
+    rankBasis: effectRankBasis({ level, clear, fromSpell, creatureLevel }),
     dc: effectCounteractDC({ level, fromSpell, creatureLevel, casterDC }),
     dcBasis: usesCasterDC
       ? localize('basis.casterDC')
