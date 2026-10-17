@@ -186,6 +186,17 @@ export function hazardCounteract({ disable, level }: { disable?: string | null; 
   };
 }
 
+/** The rank and DC a GM stored on a posted hazard counteract card. */
+export interface StoredTarget {
+  rank: number;
+  dc: number;
+}
+
+export function storedCounteractTarget(flag: unknown): StoredTarget | null {
+  const { rank, dc } = (flag ?? {}) as Partial<Record<keyof StoredTarget, unknown>>;
+  return Number.isInteger(rank) && Number.isInteger(dc) ? { rank: rank as number, dc: dc as number } : null;
+}
+
 export function isCounteractSource({
   counteraction,
   description,

@@ -89,9 +89,17 @@
         "defaultLevel": "Default effect level {level}: adjust if needed",
         "hazardText": "From the hazard's Disable entry",
         "hazardLevel": "Half hazard level {level}",
+        "cardValues": "Set on the counteract card",
         "casterDC": "The caster's spell DC",
         "levelDC": "Level-based DC for level {level}",
         "noCaster": "Caster not found: enter a DC"
+      },
+      "card": {
+        "post": "Post counteract card",
+        "prompt": "Counteract {name}",
+        "hint": "Right-click this card and choose Counteract.",
+        "rank": "Counteract rank {rank}",
+        "dc": "DC {dc}"
       },
       "rollLabel": "Counteract Check: {target}",
       "dcLabel": "{target} DC",

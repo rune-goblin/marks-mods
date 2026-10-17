@@ -13,6 +13,7 @@ import {
   levelBasedDC,
   readCounteractCard,
   skillCounteractRank,
+  storedCounteractTarget,
 } from '@/counteract/rules';
 
 const spellOrigin = {
@@ -329,6 +330,21 @@ describe('hazardCounteract', () => {
       rankFromText: false,
       dcFromText: false,
     });
+  });
+});
+
+describe('storedCounteractTarget', () => {
+  it("reads a posted hazard card's rank and DC", () => {
+    expect(storedCounteractTarget({ rank: 9, dc: 36 })).toEqual({ rank: 9, dc: 36 });
+  });
+
+  it.each([
+    ['no flag', undefined],
+    ['a missing DC', { rank: 9 }],
+    ['a text rank', { rank: '9', dc: 36 }],
+    ['a fractional DC', { rank: 9, dc: 36.5 }],
+  ])('ignores %s', (_name, flag) => {
+    expect(storedCounteractTarget(flag)).toBeNull();
   });
 });
 

@@ -1,16 +1,10 @@
 import type { ChatMessagePF2e } from 'foundry-pf2e';
 import { MODULE_ID } from '@/constants';
 import { CounteractApp } from '@/ui/CounteractApp';
+import type { ContextMenuEntry } from '@/ui/contextMenu';
 import { cardTargetName, readCard, rollerActor, skillRank, skillSources, spellSources, warn } from './counteract';
+import { registerHazardCard } from './hazardCard';
 import { registerSocket } from './socket';
-
-// v14's entry shape; the bundled typings still describe the deprecated name/condition/callback.
-interface ContextMenuEntry {
-  label: string;
-  icon: string;
-  visible: (li: HTMLElement) => boolean;
-  onClick: (event: PointerEvent, li: HTMLElement) => void;
-}
 
 function messageOf(li: HTMLElement): ChatMessagePF2e | undefined {
   return game.messages.get(li.dataset.messageId ?? '');
@@ -43,6 +37,7 @@ async function openPicker(message: ChatMessagePF2e): Promise<void> {
 
 export function registerCounteract(): void {
   registerSocket();
+  registerHazardCard();
   Hooks.on('getChatMessageContextOptions', (_app: unknown, options: ContextMenuEntry[]) => {
     options.push({
       label: `${MODULE_ID}.counteract.menu`,

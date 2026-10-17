@@ -19,6 +19,7 @@ import {
   isSpellEffect,
   readCounteractCard,
   skillCounteractRank,
+  storedCounteractTarget,
   type CardSpeaker,
   type CounteractCard,
   type Degree,
@@ -26,6 +27,7 @@ import {
 } from './rules';
 
 const FLAG = 'counteract';
+export const STORED_TARGET_FLAG = 'counteractTarget';
 const NOTE_SELECTOR = 'counteract-check';
 
 export type SourceRef =
@@ -201,10 +203,14 @@ function hazardValues(hazard: HazardPF2e): TargetValues {
   };
 }
 
-function hazardTarget(card: Extract<CounteractCard, { kind: 'hazard' }>): TargetSuggestion {
+function hazardTarget(message: ChatMessagePF2e, card: Extract<CounteractCard, { kind: 'hazard' }>): TargetSuggestion {
   const hazard = actorAt(card.originUuid);
   if (!hazard?.isOfType('hazard')) return goneTarget();
-  return { name: hazard.name, img: hazard.img, gone: false, ...hazardValues(hazard) };
+  const target = { name: hazard.name, img: hazard.img, gone: false };
+  const stored = storedCounteractTarget(message.flags[MODULE_ID]?.[STORED_TARGET_FLAG]);
+  if (!stored) return { ...target, ...hazardValues(hazard) };
+  const basis = localize('basis.cardValues');
+  return { ...target, rank: stored.rank, rankBasis: basis, dc: stored.dc, dcBasis: basis };
 }
 
 function effectTarget(card: Extract<CounteractCard, { kind: 'effect' }>): TargetSuggestion {
@@ -252,7 +258,7 @@ export function suggestTarget(cardId: string): TargetSuggestion {
     case 'effect':
       return effectTarget(card);
     case 'hazard':
-      return hazardTarget(card);
+      return hazardTarget(message, card);
   }
 }
 
