@@ -44,7 +44,7 @@ describe('readCounteractCard', () => {
     expect(readCounteractCard(spellCast)).toEqual({
       kind: 'spell',
       originUuid: 'Actor.witch.Item.slow',
-      casterUuid: 'Actor.witch',
+      actorUuid: 'Actor.witch',
       entryId: 'occultEntry',
       castRank: 3,
     });
@@ -58,7 +58,7 @@ describe('readCounteractCard', () => {
     expect(readCounteractCard(effectCard)).toEqual({
       kind: 'effect',
       originUuid: 'Actor.fighter.Item.slowed',
-      casterUuid: 'Actor.fighter',
+      actorUuid: 'Actor.fighter',
     });
   });
 
@@ -103,6 +103,11 @@ describe('spell card target', () => {
 
   it('uses the DC of the entry that cast it', () => {
     expect(casterSpellDC(entries, { id: card.entryId })).toBe(24);
+  });
+
+  it('prefers the casting entry over a higher DC of the same tradition', () => {
+    const twoOccult = [...entries, { id: 'focusEntry', tradition: 'occult', dc: 26 }];
+    expect(casterSpellDC(twoOccult, { id: card.entryId, tradition: 'occult' })).toBe(24);
   });
 
   it("falls back to the caster's highest spell DC when that entry is gone", () => {
@@ -215,7 +220,11 @@ describe('isCounteractSource', () => {
     'Each spell it counteracts ends.',
     '@UUID[Compendium.pf2e.journals.JournalEntry.rules]{Counteracting}',
   ])('accepts %s', (description) => {
-    expect(isCounteractSource(description)).toBe(true);
+    expect(isCounteractSource({ counteraction: false, description })).toBe(true);
+  });
+
+  it('accepts a spell PF2e flags as counteracting whatever its description says', () => {
+    expect(isCounteractSource({ counteraction: true, description: '<p>The target is freed.</p>' })).toBe(true);
   });
 
   it.each([
@@ -225,6 +234,10 @@ describe('isCounteractSource', () => {
     null,
     undefined,
   ])('rejects %s', (description) => {
-    expect(isCounteractSource(description)).toBe(false);
+    expect(isCounteractSource({ counteraction: false, description })).toBe(false);
+  });
+
+  it('rejects a spell with neither the flag nor a description', () => {
+    expect(isCounteractSource({})).toBe(false);
   });
 });

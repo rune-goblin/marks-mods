@@ -9,8 +9,8 @@ export const DEGREE = { criticalFailure: 0, failure: 1, success: 2, criticalSucc
 export type Degree = (typeof DEGREE)[keyof typeof DEGREE];
 
 export type CounteractCard =
-  | { kind: 'spell'; originUuid: string; casterUuid: string; entryId: string; castRank: number }
-  | { kind: 'effect'; originUuid: string; casterUuid: string; entryId?: undefined; castRank?: undefined };
+  | { kind: 'spell'; originUuid: string; actorUuid: string; entryId: string; castRank: number }
+  | { kind: 'effect'; originUuid: string; actorUuid: string; entryId?: undefined; castRank?: undefined };
 
 export interface SpellcastingDC {
   id: string;
@@ -27,7 +27,7 @@ interface CardFlags {
 export function readCounteractCard({ context, casting, origin }: CardFlags = {}): CounteractCard | null {
   if (!origin?.actor || !origin.uuid) return null;
   if (context && context.type !== 'spell-cast') return null;
-  const card = { originUuid: origin.uuid, casterUuid: origin.actor };
+  const card = { originUuid: origin.uuid, actorUuid: origin.actor };
   if (origin.type === 'effect') return { kind: 'effect', ...card };
   if (origin.type !== 'spell' || !casting || origin.castRank === undefined) return null;
   if (!origin.rollOptions?.includes(CAST_A_SPELL)) return null;
@@ -68,8 +68,9 @@ export function casterSpellDC(
   entries: SpellcastingDC[],
   { id, tradition }: { id?: string; tradition?: string | null } = {},
 ): number | null {
-  const named = entries.filter((entry) => entry.id === id || (!!tradition && entry.tradition === tradition));
-  return highestDC(named) ?? highestDC(entries);
+  const byId = entries.filter((entry) => entry.id === id);
+  const byTradition = tradition ? entries.filter((entry) => entry.tradition === tradition) : [];
+  return highestDC(byId) ?? highestDC(byTradition) ?? highestDC(entries);
 }
 
 function highestDC(entries: SpellcastingDC[]): number | null {
@@ -89,6 +90,12 @@ export function counteracts(degree: Degree, sourceRank: number, targetRank: numb
   }
 }
 
-export function isCounteractSource(descriptionHtml: string | null | undefined): boolean {
-  return /counteract/i.test(descriptionHtml?.replace(/<[^>]*>/g, '') ?? '');
+export function isCounteractSource({
+  counteraction,
+  description,
+}: {
+  counteraction?: boolean;
+  description?: string | null;
+}): boolean {
+  return !!counteraction || /counteract/i.test(description?.replace(/<[^>]*>/g, '') ?? '');
 }
