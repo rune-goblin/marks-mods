@@ -2,8 +2,10 @@ import type { ChatMessagePF2e } from 'foundry-pf2e';
 import { MODULE_ID } from '@/constants';
 import { CounteractApp } from '@/ui/CounteractApp';
 import type { ContextMenuEntry } from '@/ui/contextMenu';
+import { registerApply } from './apply';
 import { cardTargetName, readCard, rollerActor, skillRank, skillSources, spellSources, warn } from './counteract';
 import { registerHazardCard } from './hazardCard';
+import { registerReroll } from './reroll';
 import { registerSocket } from './socket';
 
 function messageOf(li: HTMLElement): ChatMessagePF2e | undefined {
@@ -38,6 +40,8 @@ async function openPicker(message: ChatMessagePF2e): Promise<void> {
 export function registerCounteract(): void {
   registerSocket();
   registerHazardCard();
+  registerApply();
+  registerReroll();
   Hooks.on('getChatMessageContextOptions', (_app: unknown, options: ContextMenuEntry[]) => {
     options.push({
       label: `${MODULE_ID}.counteract.menu`,

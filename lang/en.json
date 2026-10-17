@@ -112,7 +112,25 @@
         "noGM": "A GM must be online to approve a counteract.",
         "noSources": "{name} has no spells or skills to counteract with.",
         "paidNoRoll": "{spell} is spent, but the counteract check was cancelled.",
-        "gmLeft": "The GM left before answering your counteract request."
+        "gmLeft": "The GM left before answering your counteract request.",
+        "effectGone": "That effect is gone, so Apply has nothing to end.",
+        "noEffects": "No token here holds an effect to end.",
+        "messageGone": "The counteract roll is gone, so Apply changed nothing.",
+        "undoSkipped": "Undo left {count} effect(s) as they are: they changed after Apply."
+      },
+      "apply": {
+        "apply": "Apply",
+        "undo": "Undo",
+        "applied": "Counteract applied",
+        "hazardApplied": "Counteract applied: disable the hazard by hand",
+        "title": "Apply counteract",
+        "prompt": "Choose the effects that counteracting {spell} ends.",
+        "noMatch": "No effect here names {spell} as its origin.",
+        "match": "From this spell",
+        "remove": "Ends",
+        "stage": "Stage {from} → {to}",
+        "confirm": "Apply ({count})",
+        "cancel": "Cancel"
       }
     }
   }
