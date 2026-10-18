@@ -107,6 +107,12 @@
         "counteracted": "{target} (rank {rank}) is counteracted.",
         "notCounteracted": "{target} (rank {rank}) is not counteracted."
       },
+      "reach": {
+        "rank": "Rank",
+        "1": "Fail",
+        "2": "Success",
+        "3": "Crit"
+      },
       "warn": {
         "noActor": "Select a token or assign a character, then counteract again.",
         "noGM": "A GM must be online to approve a counteract.",

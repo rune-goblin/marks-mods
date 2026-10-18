@@ -150,9 +150,20 @@ export function counteracts(degree: Degree, sourceRank: number, targetRank: numb
   }
 }
 
+export const REACH_DEGREES = [DEGREE.failure, DEGREE.success, DEGREE.criticalSuccess] as const;
+
 export function degreeNeeded(sourceRank: number, targetRank: number): Degree | null {
-  const degrees = [DEGREE.failure, DEGREE.success, DEGREE.criticalSuccess] as const;
-  return degrees.find((degree) => counteracts(degree, sourceRank, targetRank)) ?? null;
+  return REACH_DEGREES.find((degree) => counteracts(degree, sourceRank, targetRank)) ?? null;
+}
+
+/** The highest rank each degree counteracts, as one row of the Counteract table. Null when none. */
+export function counteractReach(sourceRank: number): { degree: Degree; rank: number | null }[] {
+  const highest = {
+    [DEGREE.failure]: sourceRank - 1,
+    [DEGREE.success]: sourceRank + 1,
+    [DEGREE.criticalSuccess]: sourceRank + 3,
+  };
+  return REACH_DEGREES.map((degree) => ({ degree, rank: highest[degree] < 0 ? null : highest[degree] }));
 }
 
 export interface HazardCounteract {

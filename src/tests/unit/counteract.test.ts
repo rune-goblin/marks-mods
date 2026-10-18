@@ -4,6 +4,7 @@ import {
   applyControl,
   asDegree,
   casterSpellDC,
+  counteractReach,
   counteracts,
   degreeNeeded,
   effectCounteractDC,
@@ -413,6 +414,24 @@ describe('degreeNeeded', () => {
 
   it('is nothing when even a critical success falls short', () => {
     expect(degreeNeeded(4, 8)).toBeNull();
+  });
+});
+
+describe('counteractReach', () => {
+  it.each([
+    [0, null, 1, 3],
+    [1, 0, 2, 4],
+    [3, 2, 4, 6],
+    [10, 9, 11, 13],
+  ] as const)('from rank %i reaches %s, %i and %i', (sourceRank, failure, success, critical) => {
+    expect(counteractReach(sourceRank).map(({ rank }) => rank)).toEqual([failure, success, critical]);
+  });
+
+  it('agrees with counteracts at each reach', () => {
+    for (const { degree, rank } of counteractReach(4)) {
+      expect(counteracts(degree, 4, rank!)).toBe(true);
+      expect(counteracts(degree, 4, rank! + 1)).toBe(false);
+    }
   });
 });
 

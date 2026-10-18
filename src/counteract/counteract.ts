@@ -10,6 +10,7 @@ import { MODULE_ID } from '@/constants';
 import {
   DEGREE,
   casterSpellDC,
+  counteractReach,
   counteracts,
   effectCounteractDC,
   effectCounteractRank,
@@ -320,17 +321,32 @@ export function skillRank(actor: ActorPF2e): number {
   return skillCounteractRank(actor.level);
 }
 
+function reachTable(sourceRank: number, rolled: Degree): string {
+  const mark = (degree: Degree) => (degree === rolled ? ' class="rolled"' : '');
+  const reach = counteractReach(sourceRank);
+  const heads = reach.map(({ degree }) => `<th${mark(degree)}>${localize(`reach.${degree}`)}</th>`).join('');
+  const cells = reach.map(({ degree, rank }) => `<td${mark(degree)}>${rank ?? '—'}</td>`).join('');
+  return (
+    `<table class="${MODULE_ID} ${MODULE_ID}-counteract-reach">` +
+    `<thead><tr><th>${localize('reach.rank')}</th>${heads}</tr></thead>` +
+    `<tbody><tr><td>${sourceRank}</td>${cells}</tr></tbody></table>`
+  );
+}
+
 // PF2e shows only the note whose outcome matches the rolled degree.
 function rollNotes({ sourceRank, targetName, targetRank }: Approval) {
   const target = { target: foundry.utils.escapeHTML(targetName), rank: targetRank };
   const visibility = game.pf2e.settings.metagame.results ? null : ('gm' as const);
   const outcomes = Object.entries(DEGREE) as [keyof typeof DEGREE, Degree][];
-  return outcomes.map(([outcome, degree]) => ({
-    selector: NOTE_SELECTOR,
-    text: localize(counteracts(degree, sourceRank, targetRank) ? 'note.counteracted' : 'note.notCounteracted', target),
-    outcome: [outcome],
-    visibility,
-  }));
+  return outcomes.map(([outcome, degree]) => {
+    const key = counteracts(degree, sourceRank, targetRank) ? 'note.counteracted' : 'note.notCounteracted';
+    return {
+      selector: NOTE_SELECTOR,
+      text: `<p class="${MODULE_ID}-counteract-result">${localize(key, target)}</p>${reachTable(sourceRank, degree)}`,
+      outcome: [outcome],
+      visibility,
+    };
+  });
 }
 
 export async function rollCounteract(
