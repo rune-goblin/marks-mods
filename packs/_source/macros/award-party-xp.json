@@ -1,0 +1,14 @@
+{
+  "_id": "mmAwardPartyXp01",
+  "_key": "!macros!mmAwardPartyXp01",
+  "name": "Mark's Mods: Award Party XP",
+  "type": "script",
+  "author": "pmtTemplateUser1",
+  "img": "icons/magic/light/explosion-star-glow-yellow.webp",
+  "scope": "global",
+  "command": "game.modules.get('marks-mods')?.api?.openAwardXp();",
+  "ownership": {
+    "default": 0
+  },
+  "flags": {}
+}

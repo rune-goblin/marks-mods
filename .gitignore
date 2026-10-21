@@ -21,3 +21,6 @@ test/foundry-data/
 test-results/
 playwright-report/
 playwright/.cache/
+
+# Standalone effect previews, built by `npm run prototype`
+prototype/dist/

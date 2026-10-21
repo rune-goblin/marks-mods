@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "baseUrl": "../src",
+    "paths": {
+      "@/*": [
+        "*"
+      ]
+    }
+  },
+  "include": [
+    "xp/**/*.ts",
+    "../src/xp/**/*.ts",
+    "../src/constants.ts"
+  ],
+  "exclude": []
+}

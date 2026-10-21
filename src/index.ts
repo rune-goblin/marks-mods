@@ -1,18 +1,25 @@
 import './styles.css';
 import { registerBarrage } from './barrage';
 import { MODULE_ID } from './constants';
+import { registerSettings } from './settings';
 import { registerCounteract } from './counteract';
 import { registerGlimpse } from './glimpse';
 import { ExampleApp } from './ui/ExampleApp';
+import { awardXp, openAwardXp, registerXp, sparklePCs } from './xp';
 
 interface ModuleApi {
   version: string;
   open: () => void;
+  openAwardXp: typeof openAwardXp;
+  awardXp: typeof awardXp;
+  sparklePCs: typeof sparklePCs;
 }
 
+registerSettings();
 registerBarrage();
 registerGlimpse();
 registerCounteract();
+registerXp();
 
 Hooks.once('init', () => {
   console.log(`${MODULE_ID} | init`);
@@ -21,7 +28,7 @@ Hooks.once('init', () => {
 Hooks.once('ready', () => {
   const module = game.modules.get(MODULE_ID);
   const version = module?.version ?? '0.0.0';
-  const api: ModuleApi = { version, open: () => ExampleApp.open() };
+  const api: ModuleApi = { version, open: () => ExampleApp.open(), openAwardXp, awardXp, sparklePCs };
   // `api` is the Foundry convention for a public API, but isn't a typed field on Module.
   if (module) (module as { api?: ModuleApi }).api = api;
   console.log(`${MODULE_ID} | ready (v${version})`);

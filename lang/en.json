@@ -140,6 +140,53 @@
         "confirm": "Apply ({count})",
         "cancel": "Cancel"
       }
+    },
+    "xp": {
+      "title": "Award party XP",
+      "party": "Party members",
+      "group": {
+        "encounter": "Encounter",
+        "accomplishment": "Accomplishment"
+      },
+      "preset": {
+        "encounter": {
+          "trivial": "Trivial",
+          "low": "Low",
+          "moderate": "Moderate",
+          "severe": "Severe",
+          "extreme": "Extreme"
+        },
+        "accomplishment": {
+          "minor": "Minor",
+          "moderate": "Moderate",
+          "major": "Major"
+        }
+      },
+      "amount": "XP",
+      "hint": "Negative amounts remove XP, down to 0.",
+      "enter": "Choose an amount",
+      "award": "Award {xp} XP",
+      "remove": "Remove {xp} XP",
+      "cancel": "Cancel",
+      "chat": {
+        "awarded": "{xp} XP awarded to the party!",
+        "removed": "{xp} XP removed from the party.",
+        "recipients": "Recipients: {names}",
+        "affected": "Affected: {names}"
+      },
+      "warn": {
+        "gmOnly": "Only a GM can award XP.",
+        "noParty": "No active party. Open the Party actor and mark it as the primary party.",
+        "noMembers": "The active party has no characters."
+      },
+      "float": "+{xp} XP",
+      "combatEnded": "Combat over: {threat} threat, worth {xp} XP each."
+    },
+    "settings": {
+      "awardXpOnCombatEnd": {
+        "name": "Award XP when combat ends",
+        "hint": "Opens the Award Party XP window for the GM as soon as combat ends, set to the XP PF2e calculates for that encounter."
+      }
     }
   }
 }
