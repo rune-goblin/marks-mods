@@ -52,7 +52,7 @@ Code style: global `~/.claude/CLAUDE.md` — comment only the non-obvious *why*.
   path** — from scene/tile content and from code alike (kingmaker and abomination-vaults do
   exactly this; their esmodules embed zero assets). Do NOT `import` art: in the lib build an
   import inlines a *second* copy into `dist/<id>.js`. When code needs an SVG's shapes live (e.g.
-  to animate them), `fetch()` the served file and inline it (see `src/ui/components/example/RuneGoblinBadge.svelte`).
+  to animate them), `fetch()` the served file and inline it.
   The served path must resolve in dev, `deploy`, and the release zip.
 - Active install: `FoundryVTT` (a fresh v14 desktop install may use `FoundryVTT-v14`).
   References: `_pf2e-source`, `_foundry-data`, `_foundry-modules`.

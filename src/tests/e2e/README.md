@@ -82,9 +82,5 @@ locally, so a stray Foundry left on a port gets silently reused. Guard rails:
 - Name created documents with the `__e2e_` prefix and delete them in `afterEach`. The world is
   shared — leave it as you found it.
 - Reach Foundry APIs with `page.evaluate(() => game.…)`; drive the UI with your app's **stable**
-  selectors (the ApplicationV2 element id, `data-*` hooks). The shipped `launch.spec.ts` is the
-  minimal example: it opens the app via the public API and asserts the window renders.
-
-`launch.spec.ts` is example scaffolding — `npm run remove-example-files` deletes it along with
-`ExampleApp`. The plumbing (this dir's `global-setup.ts`, `fixtures/`, the configs, the scripts)
-stays. After stripping, write your first real spec here.
+  selectors (the ApplicationV2 element id, `data-*` hooks). `launch.spec.ts` is the smoke test:
+  it checks the module loads and exposes its public API.

@@ -5,12 +5,30 @@ import { celebrationPlan, XP_PRESETS, type CelebrationPlan } from '@/xp/rules';
 import { runSparkle } from '@/xp/sparkle';
 
 const GRID = 100;
-const PARTY = [
-  { id: 'amiri', name: 'Amiri', color: 0xb5452f },
-  { id: 'ezren', name: 'Ezren', color: 0x3c6fb0 },
-  { id: 'kyra', name: 'Kyra', color: 0xc99a2e },
-  { id: 'merisiel', name: 'Merisiel', color: 0x3f8a5a },
+// Figures from history and myth, so the mock party carries no publisher's characters.
+const HEROES = [
+  'Boudicca',
+  'Beowulf',
+  'Gilgamesh',
+  'Hypatia',
+  'Atalanta',
+  'Odysseus',
+  'Brynhild',
+  'Leonidas',
+  'Scheherazade',
+  'Sigurd',
+  'Tomoe',
+  'Enkidu',
+  'Hippolyta',
+  'Charlemagne',
+  'Medb',
+  'Saladin',
 ];
+const TOKEN_COLORS = [0xb5452f, 0x3c6fb0, 0xc99a2e, 0x3f8a5a];
+const PARTY = [...HEROES]
+  .sort(() => Math.random() - 0.5)
+  .slice(0, TOKEN_COLORS.length)
+  .map((name, i) => ({ id: name.toLowerCase(), name, color: TOKEN_COLORS[i] }));
 const TOUR = [10, 30, 40, 60, 80, 120, 160];
 const MAPS = {
   dark: { floor: [0x24212b, 0x2a2631, 0x1f1c25], line: 0x3a3544 },

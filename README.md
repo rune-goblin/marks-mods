@@ -14,16 +14,16 @@ shell — from one repo.
   `svelte.config.ts`, and `scripts/*.ts` run on Node ≥ 22.18, with no
   `tsx` or `ts-node`. No v1 Foundry APIs — ApplicationV2, DialogV2, and DataModel only.
 
-- **Svelte 5 in ApplicationV2, wired up.** A working window (`src/ui/ExampleApp.ts`)
-  `mount()`s a runes component and `unmount()`s it on close. Open it from the console:
-  `game.modules.get('marks-mods').api.open()`.
+- **Svelte 5 in ApplicationV2, wired up.** `src/ui/SvelteWindow.ts` is a frameless
+  ApplicationV2 that `mount()`s a runes component and `unmount()`s it on close. Open the Award
+  Party XP window from the console: `game.modules.get('marks-mods').api.openAwardXp()`.
 
 - **Vite Hot Module Reload.** `src/index.ts` compiles to `dist/<id>.{js,css}`, the artifacts
   `module.json` loads. `npm run dev` serves with hot module reload (HMR); `npm run check` runs `svelte-check` and `tsc`.
 
 - **Compendium packs.** `packs/_source/` JSON sources (tracked) compile to LevelDB on
-  `npm run build` (gitignored, like `dist/`), via the bundled `fvtt` CLI. Ships an example
-  "Open Example" macro that opens the demo window.
+  `npm run build` (gitignored, like `dist/`), via the bundled `fvtt` CLI. Ships the
+  "Award Party XP" macro.
 
 - **One-command rename.** `npm run init -- <new-id> [--title "..."]` rewrites the id and
   title across the manifest, sources, flags, socket channel, and pack names, then deletes
@@ -56,9 +56,8 @@ module.json          manifest (esmodules, styles, packs, pf2e relationship)
 src/                 TypeScript + Svelte source (entry: src/index.ts)
   index.ts           registers hooks, exposes game.modules.get(id).api
   constants.ts       MODULE_ID (used to build modules/<id>/… asset paths)
-  ui/ExampleApp.ts                       ApplicationV2 shell that mounts a Svelte component
-  ui/components/example/Example.svelte         sample Svelte 5 component (runes)
-  ui/components/example/RuneGoblinBadge.svelte example: art referenced by served path (img + fetched SVG)
+  ui/SvelteWindow.ts frameless ApplicationV2 shell that mounts a Svelte component
+  ui/components/     Svelte 5 components (runes)
   styles.css         global styles → dist/marks-mods.css
   app.d.ts           ambient *.svelte declaration
 assets/              module art — one source, one output, served at modules/<id>/assets/…
@@ -66,32 +65,15 @@ dist/                build output (gitignored) — what module.json loads
 lang/en.json         localization
 src/adventure.ts     adventure install prompt (no-op unless an Adventure pack is registered)
 packs/               compendium packs — built from _source by `npm run build` (gitignored)
-  _source/macros/    JSON pack sources (tracked) — e.g. the "Open Example" macro
+  _source/macros/    JSON pack sources (tracked) — e.g. the "Award Party XP" macro
   _source/_library/  pack sources kept as compendia, never folded into an Adventure (optional)
 scripts/setup.ts     dev install (real dir + symlinks back to the repo)
 scripts/deploy.ts    build + copy a clean self-contained module into Foundry
 scripts/pack.ts      build the packs module.json registers (compendia + any Adventure); run by build
 scripts/build-adventure.ts     derive one Adventure document from the per-type sources (keepId import)
 scripts/normalize-refs.ts      rewrite world UUIDs back to compendium UUIDs after an unpack
-scripts/removeExampleFiles.ts  strip the example for a clean slate (one-shot; self-deletes)
+scripts/build-prototype.ts     bundle prototype/xp into a standalone page that previews the XP effect
 ```
-
-## Remove the example
-
-The template ships a **worked example** — the demo window (`src/ui/`), the Rune Goblin badge,
-and the *Open Example* macro — so you can see the patterns (Svelte in ApplicationV2, art by
-served path, a compendium pack) in action. It's a demonstration to learn from, **not** a base
-class to extend in place: build your own ApplicationV2 alongside it, modeled on what it shows.
-
-Once you've taken what you need, strip it:
-
-```bash
-npm run remove-example-files
-```
-
-It deletes the example files and trims `src/index.ts`, `module.json`, and `lang/en.json` back
-to a minimal skeleton that still builds and loads, then removes itself. Until you add your
-first `.svelte` file, `npm run check` prints a harmless "no svelte input files" warning.
 
 ## Develop
 
@@ -179,16 +161,16 @@ claude mcp add -s project svelte -- npx -y @sveltejs/mcp  # or commit for collab
 
 The window is a thin `ApplicationV2` subclass; Svelte renders. `_renderHTML` calls
 `mount()` into a detached element, `_replaceHTML` inserts it, `_preClose` calls
-`unmount()`. See `src/ui/ExampleApp.ts`. Open the sample from the console:
-`game.modules.get('marks-mods').api.open()`.
+`unmount()`. See `src/ui/SvelteWindow.ts`. Open the Award Party XP window from the console:
+`game.modules.get('marks-mods').api.openAwardXp()`.
 
 ## Compendium packs (fvtt CLI)
 
 Pack **sources** live in `packs/_source/<name>/*.json` (tracked). `npm run build` compiles
 every one into a LevelDB at `packs/<name>` via `scripts/pack.ts` — the built packs are
 gitignored, like `dist/`, so the shipped LevelDB always matches the sources and the current
-module id. The starter example is the `macros` pack with an **Open Example** script macro
-(`game.modules.get('<id>')?.api?.open()`), which opens the example window from the macro bar.
+module id. The `macros` pack holds the **Award Party XP** script macro
+(`game.modules.get('<id>')?.api?.openAwardXp()`).
 
 Edit the JSON sources, then rebuild. The `fvtt` CLI (a dev dependency) is wrapped for manual
 single-pack work — close Foundry first, as it locks the LevelDB while it runs (the `build`

@@ -15,8 +15,6 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts'],
     globals: false,
-    // The only unit spec is the strippable example (removed by `npm run remove-example-files`
-    // alongside ExampleApp). Stay green afterwards until you add your own specs.
     passWithNoTests: true,
   },
 });
