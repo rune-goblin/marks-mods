@@ -1,7 +1,7 @@
 // Runs the module's own celebration on a mock board. The effect only touches a few Foundry
 // globals (the canvas layers, its ticker, i18n), so this file stands those up with plain PIXI.
 import en from '../../lang/en.json';
-import { celebrationPlan, XP_PRESETS, type CelebrationPlan } from '@/xp/rules';
+import { celebrationPlan, drainPlan, XP_PRESETS, type CelebrationPlan, type DrainPlan } from '@/xp/rules';
 import { runSparkle } from '@/xp/sparkle';
 
 const GRID = 100;
@@ -30,6 +30,7 @@ const PARTY = [...HEROES]
   .slice(0, TOKEN_COLORS.length)
   .map((name, i) => ({ id: name.toLowerCase(), name, color: TOKEN_COLORS[i] }));
 const TOUR = [10, 30, 40, 60, 80, 120, 160];
+const LOSSES = [-10, -40, -80, -160];
 const MAPS = {
   dark: { floor: [0x24212b, 0x2a2631, 0x1f1c25], line: 0x3a3544 },
   light: { floor: [0xe6d6b3, 0xddcba5, 0xeadcbf], line: 0xb9a57f },
@@ -173,11 +174,19 @@ const PLAN_ROWS: Array<[keyof CelebrationPlan, string]> = [
   ['rockets', 'Rockets'],
 ];
 
+const DRAIN_ROWS: Array<[keyof DrainPlan, string]> = [
+  ['motes', 'Swirling motes'],
+  ['puffs', 'Shadow puffs'],
+];
+
+const signed = (amount: number): string => (amount < 0 ? `−${-amount}` : `+${amount}`);
+
 function showPlan(amount: number): void {
-  const plan = celebrationPlan(amount);
-  $('plan-title').textContent = `What ${amount} XP shows · power ${Math.round(plan.power * 100)}%`;
+  const plan: Record<string, number | boolean> = amount < 0 ? { ...drainPlan(amount) } : { ...celebrationPlan(amount) };
+  const rows: Array<[string, string]> = amount < 0 ? DRAIN_ROWS : PLAN_ROWS;
+  $('plan-title').textContent = `What ${signed(amount)} XP shows · power ${Math.round(Number(plan.power) * 100)}%`;
   $('plan').replaceChildren(
-    ...PLAN_ROWS.map(([key, label]) => {
+    ...rows.map(([key, label]) => {
       const row = document.createElement('tr');
       const value = Number(plan[key]);
       row.innerHTML = `<th scope="row">${label}</th><td class="${value ? '' : 'off'}">${value || '—'}</td>`;
@@ -189,8 +198,9 @@ function showPlan(amount: number): void {
 let tour: number | undefined;
 function play(amount: number, fromTour = false): void {
   if (!fromTour) stopTour();
-  if (!Number.isFinite(amount) || amount <= 0) return;
-  $('now').textContent = `+${amount} XP`;
+  if (!Number.isFinite(amount) || amount === 0) return;
+  $('now').textContent = `${signed(amount)} XP`;
+  $('now').classList.toggle('loss', amount < 0);
   showPlan(amount);
   runSparkle(
     placeables.map((t) => t.actor.id),
@@ -227,6 +237,14 @@ function presetButtons(): void {
     button.innerHTML = `<span class="name">${label}</span><span class="xp">${preset.xp}</span>`;
     button.addEventListener('click', () => play(preset.xp));
     groups[preset.group].append(button);
+  }
+  for (const amount of LOSSES) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'preset loss';
+    button.innerHTML = `<span class="name">Remove</span><span class="xp">${signed(amount)}</span>`;
+    button.addEventListener('click', () => play(amount));
+    $('loss').append(button);
   }
 }
 

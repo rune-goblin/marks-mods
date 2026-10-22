@@ -51,7 +51,7 @@ export async function awardXp(amount: number, actors: CharacterPF2e[]): Promise<
     content: `<p><strong>${localize(headline, { xp })}</strong></p><p>${localize(list, { names })}</p>`,
   });
 
-  if (amount > 0) sparklePCs(actors.map((a) => a.id), amount);
+  sparklePCs(actors.map((a) => a.id), amount);
 }
 
 function onMessage(message: { type?: string } | null, senderId: string): void {

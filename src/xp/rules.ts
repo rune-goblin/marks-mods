@@ -80,3 +80,15 @@ export function celebrationPlan(amount: number): CelebrationPlan {
     rockets: power >= 0.75 ? 1 + Math.round(((power - 0.75) / 0.25) * 2) : 0,
   };
 }
+
+export interface DrainPlan {
+  power: number;
+  motes: number;
+  puffs: number;
+}
+
+/** A loss scales on the same curve as an award of the same size. */
+export function drainPlan(amount: number): DrainPlan {
+  const power = powerFromAmount(Math.abs(amount));
+  return { power, motes: Math.round(16 + power * 40), puffs: Math.round(4 + power * 4) };
+}

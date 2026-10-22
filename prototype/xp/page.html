@@ -84,6 +84,8 @@
   }
   .presets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.375rem; }
   .presets.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .presets.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .preset.loss .xp, #now.loss { color: #ff5a64; }
   @media (max-width: 460px) { .presets { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .stack { display: grid; gap: 1rem; }
 
@@ -142,7 +144,7 @@
 <div class="wrap">
   <header>
     <h1>XP Celebration Lab</h1>
-    <p>The Award Party XP effect from Mark's Mods, running the module's own animation code on a mock battle map. Pick an award to see how each size celebrates, from a puff of smoke at 10 XP to fireworks at 160.</p>
+    <p>The Award Party XP effect from Mark's Mods, running the module's own animation code on a mock battle map. Pick an award to see how each size celebrates, from a puff of smoke at 10 XP to fireworks at 160. A negative amount plays the red swirl for lost XP.</p>
   </header>
 
   <div id="stage"><span id="now" aria-live="polite"></span></div>
@@ -156,6 +158,10 @@
       <div class="group">
         <span class="label">Accomplishment</span>
         <div class="presets three" id="accomplishment"></div>
+      </div>
+      <div class="group">
+        <span class="label">XP loss</span>
+        <div class="presets four" id="loss"></div>
       </div>
       <div class="row">
         <label class="label" for="amount">Custom XP</label>
@@ -186,7 +192,7 @@
         <span class="label" id="plan-title">What 80 XP shows</span>
         <table aria-labelledby="plan-title"><tbody id="plan"></tbody></table>
       </div>
-      <p class="note">Grid squares are 5 ft (100 px), the PF2e default. Removing XP plays nothing.</p>
+      <p class="note">Grid squares are 5 ft (100 px), the PF2e default. Removing XP plays a red swirl.</p>
     </div>
   </div>
 </div>

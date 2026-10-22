@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { celebrationPlan, isAward, nextXp, powerFromAmount, XP_PRESETS } from '@/xp/rules';
+import { celebrationPlan, drainPlan, isAward, nextXp, powerFromAmount, XP_PRESETS } from '@/xp/rules';
 
 describe('nextXp', () => {
   it('adds an award', () => {
@@ -74,5 +74,17 @@ describe('XP_PRESETS', () => {
   it('keys each preset uniquely within its group', () => {
     const ids = XP_PRESETS.map((p) => `${p.group}.${p.key}`);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('drainPlan', () => {
+  it('matches the power of an award the same size', () => {
+    expect(drainPlan(-80).power).toBe(celebrationPlan(80).power);
+  });
+
+  it('swirls more motes for a bigger loss', () => {
+    const counts = [-10, -40, -80, -160].map((xp) => drainPlan(xp).motes);
+    expect(counts).toEqual([...counts].sort((a, b) => a - b));
+    expect(counts[0]).toBeLessThan(counts[3]);
   });
 });

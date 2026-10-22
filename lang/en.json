@@ -142,7 +142,6 @@
     },
     "xp": {
       "title": "Award party XP",
-      "party": "Party members",
       "group": {
         "encounter": "Encounter",
         "accomplishment": "Accomplishment"
@@ -161,7 +160,7 @@
           "major": "Major"
         }
       },
-      "amount": "XP",
+      "amount": "XP per character",
       "hint": "Negative amounts remove XP, down to 0.",
       "enter": "Choose an amount",
       "award": "Award {xp} XP",
@@ -179,6 +178,7 @@
         "noMembers": "The active party has no characters."
       },
       "float": "+{xp} XP",
+      "floatLoss": "−{xp} XP",
       "combatEnded": "Combat over: {threat} threat, worth {xp} XP each."
     },
     "settings": {

@@ -1,11 +1,14 @@
 import { localize } from './i18n';
-import { celebrationPlan, type CelebrationPlan } from './rules';
+import { celebrationPlan, drainPlan, type CelebrationPlan, type DrainPlan } from './rules';
 
 const GOLD = 0xffd966;
 const WHITE_HOT = 0xfff5d6;
 const AMBER = 0xff9933;
 const SMOKE = 0xe3dccf;
 const SMOKE_GOLD = 0xf0dca6;
+const BLOOD = 0xff2a3a;
+const EMBER_RED = 0xff7a5c;
+const SHADOW_RED = 0x4a0812;
 const FIREWORK_COLORS = [0xffd966, 0xff5e7e, 0x5ee0ff, 0xb07cff, 0x7dff8a, 0xff9933];
 
 // Sizes below are tuned for a 100px grid, where a 1x1 token has a 50px radius.
@@ -44,9 +47,10 @@ interface Textures {
   ringThick: PIXI.Texture;
   ringThin: PIXI.Texture;
   streak: PIXI.Texture;
+  dot: PIXI.Texture;
 }
 
-const TEXTURE_SIZE = { star: 40, soft: 128, halo: 128, smoke: 64, ring: 128, streak: 48 };
+const TEXTURE_SIZE = { dot: 24, star: 40, soft: 128, halo: 128, smoke: 64, ring: 128, streak: 48 };
 /** Where a halo is brightest, as a fraction of its radius. */
 const HALO_PEAK = 0.6;
 
@@ -148,6 +152,7 @@ function makeTextures(power: number): Textures {
     ringThick: ringTexture(1.5 + power * 7.5),
     ringThin: ringTexture(1.5 + power * 1.2),
     streak: streakTexture(),
+    dot: radialTexture(TEXTURE_SIZE.dot, 6, 0.3),
   };
 }
 
@@ -160,6 +165,8 @@ interface Motion {
   gravity?: number;
   /** Fraction of velocity shed per second. */
   drag?: number;
+  /** Sets the position from the life fraction, replacing velocity, drag and gravity. */
+  path?: (t: number) => readonly [number, number];
   life: number;
   delay?: number;
   /** Rendered diameter in pixels at a scale curve value of 1; omitted keeps the texture's size. */
@@ -216,11 +223,15 @@ class Particle {
     const t = this.age / m.life;
     if (t >= 1) return false;
 
-    const keep = Math.exp(-(m.drag ?? 0) * dt);
-    this.vx *= keep;
-    this.vy = this.vy * keep + (m.gravity ?? 0) * dt;
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
+    if (m.path) {
+      [this.x, this.y] = m.path(t);
+    } else {
+      const keep = Math.exp(-(m.drag ?? 0) * dt);
+      this.vx *= keep;
+      this.vy = this.vy * keep + (m.gravity ?? 0) * dt;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+    }
 
     const twinkle = m.twinkle ? 0.7 + 0.3 * Math.sin(this.age * 14 + this.phase) : 1;
     const clear = m.clear ? Math.min(1, Math.max(0, (Math.hypot(this.x, this.y) / m.clear - 0.6) / 0.4)) : 1;
@@ -613,20 +624,21 @@ function fireworks(scene: Scene, delay: number): void {
   }
 }
 
-/** The award as rising text over the token: it pops in, floats up and fades. */
-function floatingText(scene: Scene, label: string, delay: number): void {
-  const { show, plan, r } = scene;
-  const p = plan.power;
-  const fontSize = Math.round(r * (0.42 + p * 0.5));
+const TEXT_LOOKS = {
+  gain: { fill: ['#fffbe6', '#ffd34d', '#f0a020'], stroke: '#2a1700' },
+  loss: { fill: ['#ffe0e0', '#ff4d5a', '#a8101e'], stroke: '#2a0006' },
+};
+
+function labelText(label: string, fontSize: number, look: keyof typeof TEXT_LOOKS): PIXI.Text {
   const text = new PIXI.Text(
     label,
     new PIXI.TextStyle({
       fontFamily: 'Signika, sans-serif',
       fontSize,
       fontWeight: '700',
-      fill: ['#fffbe6', '#ffd34d', '#f0a020'],
+      fill: TEXT_LOOKS[look].fill,
       fillGradientType: PIXI.TEXT_GRADIENT.LINEAR_VERTICAL,
-      stroke: '#2a1700',
+      stroke: TEXT_LOOKS[look].stroke,
       strokeThickness: Math.max(3, fontSize * 0.14),
       dropShadow: true,
       dropShadowColor: '#000000',
@@ -638,8 +650,15 @@ function floatingText(scene: Scene, label: string, delay: number): void {
   );
   // Rasterise for the current zoom so the text stays crisp on a zoomed-in canvas.
   text.resolution = Math.max(2, canvas.stage!.scale.x * window.devicePixelRatio);
+  return text;
+}
+
+/** The award as rising text over the token: it pops in, floats up and fades. */
+function floatingText(scene: Scene, label: string, delay: number): void {
+  const { show, plan, r } = scene;
+  const p = plan.power;
   const pulse = p >= 0.75;
-  show.emit('text', text, {
+  show.emit('text', labelText(label, Math.round(r * (0.42 + p * 0.5)), 'gain'), {
     y: -r * 0.95,
     vy: -r * (1.1 + p * 0.5),
     drag: 1.4,
@@ -670,7 +689,93 @@ function celebrate(
   return show;
 }
 
-/** Celebrates on every visible token of the named actors on this client's canvas. */
+/** A loss: red motes fade in around the token and spiral in to its rim as the number sinks. */
+function drain(
+  center: { x: number; y: number },
+  r: number,
+  plan: DrainPlan,
+  tex: Textures,
+  label: string,
+  labels: PIXI.Container,
+): Show {
+  const show = new Show(center, labels);
+  const k = r / BASE_RADIUS;
+  const p = plan.power;
+  const duration = 1.6 + p * 0.6;
+
+  show.emit('glow', sprite(tex.halo), {
+    life: duration,
+    delay: 0.25,
+    size: haloSize(r),
+    scale: grow(1.2, 0.95),
+    alpha: sine(0.3 + p * 0.25),
+    tint: BLOOD,
+  });
+
+  for (let i = 0; i < plan.puffs; i++) {
+    const angle = (i / plan.puffs) * Math.PI * 2 + rand(-0.3, 0.3);
+    const from = r * rand(1.4, 1.7);
+    show.emit('smoke', sprite(tex.smoke), {
+      path: (t) => {
+        const rho = from - r * 0.4 * easeOut(t);
+        return [Math.cos(angle + t * 0.8) * rho, Math.sin(angle + t * 0.8) * rho];
+      },
+      life: duration * rand(0.9, 1.1),
+      delay: rand(0, 0.3),
+      size: r * (1 + p * 0.4) * rand(0.85, 1.15),
+      alpha: bell(0.4, 0.5 + p * 0.15),
+      tint: SHADOW_RED,
+      spin: rand(-0.5, 0.5),
+    });
+  }
+
+  for (let i = 0; i < plan.motes; i++) {
+    const start = rand(0, Math.PI * 2);
+    const from = r * rand(1.5, 2 + p * 0.8);
+    const to = r * rand(0.85, 1.05);
+    // Every mote turns the same way, so together they read as one swirl.
+    const turn = Math.PI * 2 * rand(0.45, 0.8);
+    let trail = 0;
+    show.emit('sparks', sprite(tex.dot), {
+      path: (t) => {
+        const rho = from + (to - from) * easeOut(t);
+        return [Math.cos(start + turn * t) * rho, Math.sin(start + turn * t) * rho];
+      },
+      life: duration * rand(0.7, 1),
+      delay: rand(0, 0.5),
+      size: TEXTURE_SIZE.dot * k * rand(0.45, 0.9),
+      alpha: bell(0.45, 0.95),
+      tint: Math.random() < 0.25 ? EMBER_RED : BLOOD,
+      onFrame: (mote, dt) => {
+        for (trail += dt; trail > 1 / 45; trail -= 1 / 45) {
+          show.emit('sparks', sprite(tex.dot), {
+            x: mote.x,
+            y: mote.y,
+            life: 0.3,
+            size: mote.sprite.width * 0.6,
+            alpha: fadeOut(0, mote.sprite.alpha * 0.5),
+            tint: BLOOD,
+          });
+        }
+      },
+    });
+  }
+
+  show.emit('text', labelText(label, Math.round(r * (0.42 + p * 0.3)), 'loss'), {
+    y: -r * 1.5,
+    vy: r * 0.15,
+    gravity: r * 0.3,
+    life: 2.2 + p * 0.8,
+    delay: 0.1,
+    rotation: 0,
+    scale: (_t, age) => (age < 0.25 ? 1.25 - 0.25 * easeOut(age / 0.25) : 1),
+    alpha: (t, age) => Math.min(1, age / 0.2) * fadeOut(0.55)(t, age),
+    ownsTexture: true,
+  });
+  return show;
+}
+
+/** Plays the award, or the loss when `amount` is negative, on every visible token of the named actors. */
 export function runSparkle(actorIds: readonly string[], amount: number): void {
   if (!canvas?.ready || !canvas.tokens || !canvas.interface || !canvas.app) return;
   const ids = new Set(actorIds);
@@ -679,11 +784,20 @@ export function runSparkle(actorIds: readonly string[], amount: number): void {
   );
   if (!tokens.length) return;
 
-  const plan = celebrationPlan(amount);
-  const tex = makeTextures(plan.power);
-  const label = localize('float', { xp: amount });
   const labels = new PIXI.Container();
-  const live = new Set(tokens.map((t) => celebrate(t.center, Math.max(t.w, t.h) / 2, plan, tex, label, labels)));
+  let live: Set<Show>;
+  let tex: Textures;
+  if (amount < 0) {
+    const plan = drainPlan(amount);
+    const label = localize('floatLoss', { xp: -amount });
+    tex = makeTextures(plan.power);
+    live = new Set(tokens.map((t) => drain(t.center, Math.max(t.w, t.h) / 2, plan, tex, label, labels)));
+  } else {
+    const plan = celebrationPlan(amount);
+    const label = localize('float', { xp: amount });
+    tex = makeTextures(plan.power);
+    live = new Set(tokens.map((t) => celebrate(t.center, Math.max(t.w, t.h) / 2, plan, tex, label, labels)));
+  }
   canvas.interface.addChild(labels);
 
   const ticker = canvas.app.ticker;
