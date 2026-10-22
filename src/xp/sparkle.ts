@@ -658,8 +658,9 @@ function floatingText(scene: Scene, label: string, delay: number): void {
   const { show, plan, r } = scene;
   const p = plan.power;
   const pulse = p >= 0.75;
-  show.emit('text', labelText(label, Math.round(r * (0.42 + p * 0.5)), 'gain'), {
-    y: -r * 0.95,
+  const size = Math.round(r * (0.42 + p * 0.5));
+  show.emit('text', labelText(label, size, 'gain'), {
+    y: -r - size * 0.6,
     vy: -r * (1.1 + p * 0.5),
     drag: 1.4,
     life: 2 + p * 1.2,
@@ -798,6 +799,8 @@ export function runSparkle(actorIds: readonly string[], amount: number): void {
     tex = makeTextures(plan.power);
     live = new Set(tokens.map((t) => celebrate(t.center, Math.max(t.w, t.h) / 2, plan, tex, label, labels)));
   }
+  // The interface group sorts by zIndex, and the token layer would otherwise cover the labels.
+  labels.zIndex = (canvas.tokens.zIndex ?? 0) + 1;
   canvas.interface.addChild(labels);
 
   const ticker = canvas.app.ticker;

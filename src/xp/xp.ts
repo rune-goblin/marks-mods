@@ -21,7 +21,10 @@ export function partyCharacters(): CharacterPF2e[] | null {
     ui.notifications.error(localize('warn.noParty'));
     return null;
   }
-  const members = party.members.filter((a): a is CharacterPF2e => a.isOfType('character'));
+  // Animal companions and other minions sit in the party as characters but earn no XP.
+  const members = party.members.filter(
+    (a): a is CharacterPF2e => a.isOfType('character') && !a.traits.has('minion'),
+  );
   if (!members.length) {
     ui.notifications.error(localize('warn.noMembers'));
     return null;
