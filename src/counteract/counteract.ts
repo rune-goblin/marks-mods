@@ -9,6 +9,8 @@ import type {
 import { MODULE_ID } from '@/constants';
 import {
   DEGREE,
+  anyCounteractCard,
+  cardCounteractLevel,
   casterSpellDC,
   counteractReach,
   counteracts,
@@ -18,6 +20,9 @@ import {
   isCounteractSource,
   isEffectLevelClear,
   isSpellEffect,
+  levelBasedDC,
+  levelForRank,
+  rankForLevel,
   readCounteractCard,
   skillCounteractRank,
   storedCounteractTarget,
@@ -41,6 +46,8 @@ export interface SpellSource {
   castRank: number;
   slotId?: number;
   slots: number;
+  /** Every slot or use is gone; only a GM sees it, and casting it costs nothing. */
+  spent: boolean;
   flagged: boolean;
   counteracts: boolean;
 }
@@ -104,7 +111,9 @@ export function warn(key: string, data?: Record<string, string | number>): void 
   ui.notifications.warn(localize(`warn.${key}`, data));
 }
 
+/** A GM counteracts as the selected token; a player always as their own character. */
 export function rollerActor(): ActorPF2e | null {
+  if (!game.user.isGM) return game.user.character ?? null;
   return canvas.tokens?.controlled[0]?.actor ?? game.user.character ?? null;
 }
 
@@ -125,9 +134,17 @@ export function readCard(message: ChatMessagePF2e): CounteractCard | null {
   return readCounteractCard(message.flags.pf2e, cardSpeaker(message));
 }
 
+/** Any card counteracts: the module reads what it can, and the rest falls back to defaults. */
+export function counteractCard(message: ChatMessagePF2e): CounteractCard {
+  return readCard(message) ?? anyCounteractCard({ itemUuid: message.item?.uuid, actorUuid: message.actor?.uuid, messageUuid: message.uuid });
+}
+
 /** The roller's view of the target: its name only, since the GM sets the rank and DC. */
 export function cardTargetName(message: ChatMessagePF2e, card: CounteractCard): string {
-  const name = card.kind === 'spell' ? message.item?.name : fromUuidSync(card.originUuid, { strict: false })?.name;
+  const name =
+    card.kind === 'spell' || card.kind === 'card'
+      ? (message.item?.name ?? message.actor?.name)
+      : fromUuidSync(card.originUuid, { strict: false })?.name;
   return name ?? localize('unknownTarget');
 }
 
@@ -234,9 +251,46 @@ function effectTarget(card: Extract<CounteractCard, { kind: 'effect' }>): Target
   };
 }
 
-export function suggestTarget(cardId: string): TargetSuggestion {
+function anyCardTarget(message: ChatMessagePF2e, rollerLevel: number): TargetSuggestion {
+  const { item, actor } = message;
+  const name = item?.name ?? actor?.name ?? localize('unknownTarget');
+  const img = item?.img ?? actor?.img ?? null;
+
+  if (item?.isOfType('spell')) {
+    const rank = message.flags.pf2e.origin?.castRank ?? item.rank;
+    const casterDC = actor ? casterSpellDC(spellcastingDCs(actor), { id: message.flags.pf2e.casting?.id }) : null;
+    const level = levelForRank(rank);
+    return {
+      name,
+      img,
+      gone: false,
+      rank,
+      rankBasis: localize('basis.spellRank', { name, rank }),
+      dc: casterDC ?? levelBasedDC(level),
+      dcBasis: casterDC === null ? localize('basis.levelDC', { level }) : localize('basis.casterDC'),
+    };
+  }
+
+  const { level, basis } = cardCounteractLevel({
+    itemLevel: item?.isOfType('physical') ? item.level : null,
+    creatureLevel: actor?.isOfType('creature') ? actor.level : null,
+    fallbackLevel: rollerLevel,
+  });
+  return {
+    name,
+    img,
+    gone: false,
+    rank: rankForLevel(level),
+    rankBasis: localize(`basis.${basis}Level`, { level }),
+    dc: levelBasedDC(level),
+    dcBasis: localize('basis.levelDC', { level }),
+  };
+}
+
+/** `rollerLevel` stands in for the target's level when the card names no level at all. */
+export function suggestTarget(cardId: string, rollerLevel: number): TargetSuggestion {
   const message = game.messages.get(cardId);
-  const card = message ? readCard(message) : null;
+  const card = message ? counteractCard(message) : null;
   if (!message || !card) return goneTarget();
   switch (card.kind) {
     case 'spell':
@@ -245,6 +299,8 @@ export function suggestTarget(cardId: string): TargetSuggestion {
       return effectTarget(card);
     case 'hazard':
       return hazardTarget(message, card);
+    case 'card':
+      return anyCardTarget(message, rollerLevel);
   }
 }
 
@@ -252,13 +308,17 @@ function bySpell(a: SpellSource, b: SpellSource): number {
   return (
     Number(b.flagged) - Number(a.flagged) ||
     Number(b.counteracts) - Number(a.counteracts) ||
+    Number(a.spent) - Number(b.spent) ||
     a.spell.name.localeCompare(b.spell.name, game.i18n.lang) ||
     b.castRank - a.castRank
   );
 }
 
-/** One source per castable (entry, spell, rank); prepared copies of it collapse into `slots`. */
-export async function spellSources(actor: ActorPF2e): Promise<SpellSource[]> {
+/**
+ * One source per (entry, spell, rank); prepared copies of it collapse into `slots`. With
+ * `includeSpent`, a spell with no slot or use left stays listed as spent.
+ */
+export async function spellSources(actor: ActorPF2e, { includeSpent = false } = {}): Promise<SpellSource[]> {
   if (!actor.isOfType('character', 'npc')) return [];
   const sources = new Map<string, SpellSource>();
   for (const entry of actor.spellcasting.regular) {
@@ -267,12 +327,17 @@ export async function spellSources(actor: ActorPF2e): Promise<SpellSource[]> {
       // A spent focus pool or flexible rank marks no slot expended, only the group's uses.
       const exhausted = group.uses?.value === 0;
       group.active.forEach((slot, index) => {
-        if (!slot || ((slot.expended || exhausted) && !slot.spell.atWill)) return;
+        if (!slot) return;
+        const spent = (slot.expended || exhausted) && !slot.spell.atWill;
+        if (spent && !includeSpent) return;
         const { spell } = slot;
         const castRank = slot.castRank ?? spell.rank;
         const key = `${entry.id}.${spell.id}.${castRank}`;
+        const slotId = entry.isPrepared ? index : undefined;
         const known = sources.get(key);
         if (known) {
+          if (spent) return;
+          if (known.spent) Object.assign(known, { spent: false, slotId, slots: 0 });
           known.slots++;
           return;
         }
@@ -283,8 +348,9 @@ export async function spellSources(actor: ActorPF2e): Promise<SpellSource[]> {
           entry,
           spell,
           castRank,
-          slotId: entry.isPrepared ? index : undefined,
-          slots: 1,
+          slotId,
+          slots: spent ? 0 : 1,
+          spent,
           flagged: counteraction,
           counteracts: isCounteractSource({ counteraction, description: spell.system.description.value }),
         });
@@ -392,7 +458,7 @@ export async function rollCounteract(
   }
 
   const { entry, spell, castRank, slotId } = source;
-  const pays = !spell.atWill;
+  const pays = !spell.atWill && !source.spent;
   if (pays && !(await entry.consume(spell, castRank, slotId))) return;
   const cast = spell.loadVariant({ castRank }) ?? spell;
   const traits = new Set<string>(cast.system.traits.value);

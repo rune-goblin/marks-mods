@@ -1,3 +1,4 @@
+import type { ActorPF2e } from 'foundry-pf2e';
 import { mount } from 'svelte';
 import { MODULE_ID } from '@/constants';
 import { suggestTarget, type Approval, type CounteractRequest, type TargetSuggestion } from '@/counteract/counteract';
@@ -16,12 +17,14 @@ export class CounteractReviewApp extends SvelteWindow {
 
   readonly request: CounteractRequest;
   readonly suggestion: TargetSuggestion;
+  readonly roller: ActorPF2e | null;
   #respond: Respond | null;
 
   constructor(request: CounteractRequest, respond: Respond) {
     super();
     this.request = request;
-    this.suggestion = suggestTarget(request.cardId);
+    this.roller = fromUuidSync<ActorPF2e>(request.actorUuid, { strict: false });
+    this.suggestion = suggestTarget(request.cardId, this.roller?.level ?? 1);
     this.#respond = respond;
   }
 

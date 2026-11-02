@@ -3,7 +3,7 @@ import { MODULE_ID } from '@/constants';
 import { CounteractApp } from '@/ui/CounteractApp';
 import type { ContextMenuEntry } from '@/ui/contextMenu';
 import { registerApply } from './apply';
-import { cardTargetName, readCard, rollerActor, skillRank, skillSources, spellSources, warn } from './counteract';
+import { cardTargetName, counteractCard, rollerActor, skillRank, skillSources, spellSources, warn } from './counteract';
 import { registerHazardCard } from './hazardCard';
 import { registerReroll } from './reroll';
 import { registerSocket } from './socket';
@@ -13,14 +13,13 @@ function messageOf(li: HTMLElement): ChatMessagePF2e | undefined {
 }
 
 async function openPicker(message: ChatMessagePF2e): Promise<void> {
-  const card = readCard(message);
-  if (!card) return;
+  const card = counteractCard(message);
   const actor = rollerActor();
   if (!actor) {
-    warn('noActor');
+    warn(game.user.isGM ? 'noActor' : 'noCharacter');
     return;
   }
-  const spells = await spellSources(actor);
+  const spells = await spellSources(actor, { includeSpent: game.user.isGM });
   const skills = skillSources(actor);
   if (!spells.length && !skills.length) {
     warn('noSources', { name: actor.name });
@@ -48,7 +47,7 @@ export function registerCounteract(): void {
       icon: 'fa-solid fa-shield-halved',
       visible: (li) => {
         const message = messageOf(li);
-        return !!message && !!readCard(message);
+        return !!message;
       },
       onClick: (_event, li) => {
         const message = messageOf(li);

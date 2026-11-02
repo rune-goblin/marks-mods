@@ -227,6 +227,23 @@ Rules additions (pure, tested, in `rules.ts`): the creature-level row of the tab
 - Gate: `npm test`, `npm run check`, `npm run build`, and manual: Apply removes Slow from the
   NPC; Undo brings it back with the same id; a player sees neither button.
 
+## Revision (2026-11-02) — GM counteracts anything
+
+- **Any card.** **Counteract** shows on every chat message, for GMs and players alike. A card the rules
+  can't read becomes kind `card` (`anyCounteractCard`): its origin is the card's item, else its
+  speaker, else the message. The review suggests a spell's rank and caster DC, else half the
+  item's level (physical items), else half the speaker's creature level, else half the roller's
+  level, each with the level-based DC. Apply lists the targets' effects, matching those whose
+  origin is that item.
+- **Roller.** A GM counteracts as the first selected token, else their assigned character. A
+  player always counteracts as their assigned character, whatever token they have selected.
+- **Every spell.** Every picker shows all castable spells by default. The GM's picker shows all spells by default, spent ones included and marked
+  **Spent**. Counteracting with a spent spell costs nothing.
+- **Level pickers.** The review sets each side by level: the dispeller's level fills the source
+  rank; the effect's level fills the target rank and its level-based DC. The rank and DC fields
+  stay editable; a value that no longer fits the picked level shows the picker as **Custom**.
+  Rank r maps to level 2r − 1, which reproduces GM Core's DCs by spell rank.
+
 ## Not in v1
 
 Item and feat sources; custom modifiers (players add those in PF2e's roll dialog); automatic application without a GM click;

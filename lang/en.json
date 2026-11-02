@@ -78,7 +78,11 @@
         "dc": "DC",
         "gone": "That target no longer exists.",
         "approve": "Approve",
-        "refuse": "Refuse"
+        "refuse": "Refuse",
+        "level": "Level",
+        "custom": "Custom",
+        "sourceLevel": "Level {level} · rank {rank}",
+        "targetLevel": "Level {level} · rank {rank} · DC {dc}"
       },
       "basis": {
         "cast": "{name}, cast at rank {rank}",
@@ -91,7 +95,10 @@
         "cardValues": "Set on the counteract card",
         "casterDC": "The caster's spell DC",
         "levelDC": "Level-based DC for level {level}",
-        "noCaster": "Caster not found: enter a DC"
+        "noCaster": "Caster not found: enter a DC",
+        "spellRank": "{name}, rank {rank}",
+        "itemLevel": "Half the item's level {level}",
+        "fallbackLevel": "Default level {level}, the counteracting creature's: adjust if needed"
       },
       "card": {
         "post": "Post counteract card",
@@ -121,7 +128,8 @@
         "effectGone": "The effect is gone, so Apply changed nothing.",
         "noEffects": "No token here holds an effect or condition to end.",
         "messageGone": "The counteract roll is gone, so Apply changed nothing.",
-        "undoSkipped": "Undo left {count} effect(s) as they are: they changed after Apply."
+        "undoSkipped": "Undo left {count} effect(s) as they are: they changed after Apply.",
+        "noCharacter": "Assign a character to your user, then counteract again."
       },
       "apply": {
         "apply": "Apply",
@@ -138,7 +146,8 @@
         "stage": "Stage {from} → {to}",
         "confirm": "Apply ({count})",
         "cancel": "Cancel"
-      }
+      },
+      "spent": "Spent"
     },
     "xp": {
       "title": "Award party XP",

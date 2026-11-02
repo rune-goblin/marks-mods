@@ -18,7 +18,7 @@
   const signed = new Intl.NumberFormat(game.i18n.lang, { signDisplay: 'always' });
 
   let tab = $state<'spells' | 'skills'>(untrack(() => (session.spells.length ? 'spells' : 'skills')));
-  let showAll = $state(false);
+  let showAll = $state(true);
   let waiting = $state<CounteractSource | null>(null);
 
   const shownSpells = $derived(showAll ? spells : spells.filter((spell) => spell.counteracts));
@@ -99,7 +99,9 @@
               <span class="label">
                 <span class="name">
                   <span class="text">{source.spell.name}</span>
-                  {#if source.slots > 1}
+                  {#if source.spent}
+                    <span class="muted">{t('spent')}</span>
+                  {:else if source.slots > 1}
                     <span class="muted">{t('slots', { count: source.slots })}</span>
                   {/if}
                 </span>

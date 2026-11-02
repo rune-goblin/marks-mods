@@ -28,7 +28,8 @@ export function asDegree(value: unknown): Degree | null {
 export type CounteractCard =
   | { kind: 'spell'; originUuid: string; actorUuid: string; entryId: string; castRank: number }
   | { kind: 'effect'; originUuid: string; actorUuid: string; entryId?: undefined; castRank?: undefined }
-  | { kind: 'hazard'; originUuid: string; actorUuid: string; entryId?: undefined; castRank?: undefined };
+  | { kind: 'hazard'; originUuid: string; actorUuid: string; entryId?: undefined; castRank?: undefined }
+  | { kind: 'card'; originUuid: string; actorUuid: string; entryId?: undefined; castRank?: undefined };
 
 /** The actor a message speaks for, by uuid and actor type. */
 export interface CardSpeaker {
@@ -55,6 +56,22 @@ export function readCounteractCard(flags: CardFlags = {}, speaker?: CardSpeaker 
   return { kind: 'hazard', originUuid: speaker.uuid, actorUuid: speaker.uuid };
 }
 
+/**
+ * Any message, for a GM who counteracts what the module can't read. The origin is the card's item,
+ * else its speaker, else the message itself, so Apply can still match effects that item made.
+ */
+export function anyCounteractCard({
+  itemUuid,
+  actorUuid,
+  messageUuid,
+}: {
+  itemUuid?: string | null;
+  actorUuid?: string | null;
+  messageUuid: string;
+}): CounteractCard {
+  return { kind: 'card', originUuid: itemUuid || actorUuid || messageUuid, actorUuid: actorUuid ?? '' };
+}
+
 function readItemCard({ context, casting, origin }: CardFlags): CounteractCard | null {
   if (!origin?.actor || !origin.uuid) return null;
   if (context && context.type !== 'spell-cast') return null;
@@ -67,6 +84,37 @@ function readItemCard({ context, casting, origin }: CardFlags): CounteractCard |
 
 export function levelBasedDC(level: number): number {
   return LEVEL_DCS[Math.min(Math.max(level, MIN_LEVEL), MAX_LEVEL) - MIN_LEVEL];
+}
+
+export const LEVELS: readonly number[] = Array.from({ length: MAX_LEVEL - MIN_LEVEL + 1 }, (_, i) => i + MIN_LEVEL);
+
+export function rankForLevel(level: number): number {
+  return halfUp(level);
+}
+
+/** The lowest level whose counteract rank is `rank`, matching GM Core's DCs by spell rank. */
+export function levelForRank(rank: number): number {
+  return Math.max(0, 2 * rank - 1);
+}
+
+/** The level whose rank and level-based DC are exactly these, else null. */
+export function levelMatching({ rank, dc }: { rank: number | null; dc: number | null }): number | null {
+  return LEVELS.find((level) => rankForLevel(level) === rank && levelBasedDC(level) === dc) ?? null;
+}
+
+/** A card the module can't read: an item's level, else its creature's, else the fallback level. */
+export function cardCounteractLevel({
+  itemLevel,
+  creatureLevel,
+  fallbackLevel,
+}: {
+  itemLevel?: number | null;
+  creatureLevel?: number | null;
+  fallbackLevel: number;
+}): { level: number; basis: 'item' | 'creature' | 'fallback' } {
+  if (itemLevel != null) return { level: itemLevel, basis: 'item' };
+  if (creatureLevel != null) return { level: creatureLevel, basis: 'creature' };
+  return { level: fallbackLevel, basis: 'fallback' };
 }
 
 export function isSpellEffect({
@@ -247,7 +295,7 @@ export interface CounteractFlag {
   undo: UndoEntry[];
 }
 
-const CARD_KINDS = new Set<unknown>(['spell', 'effect', 'hazard']);
+const CARD_KINDS = new Set<unknown>(['spell', 'effect', 'hazard', 'card']);
 
 export function readCounteractFlag(raw: unknown): CounteractFlag | null {
   if (!raw || typeof raw !== 'object') return null;

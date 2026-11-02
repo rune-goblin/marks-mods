@@ -137,10 +137,11 @@ async function cardEffect(flag: CounteractFlag): Promise<Ending[] | null> {
 
 /**
  * Spell card candidates: effects whose origin is the spell, and conditions its description names.
+ * Any other card's origin is an item, actor or message, which only effects from that item match.
  * The roller's targets come first; when they hold no candidate, the viewed scene's tokens join them,
  * and the GM confirms any candidate found there, since the roller did not target it.
  */
-async function spellEndings(flag: CounteractFlag): Promise<Ending[] | null> {
+async function originEndings(flag: CounteractFlag): Promise<Ending[] | null> {
   const named = namedConditions(flag.originUuid);
   const targeted = targetTokens(flag);
   const scene = [...(canvas.scene?.tokens ?? [])];
@@ -160,7 +161,10 @@ async function spellEndings(flag: CounteractFlag): Promise<Ending[] | null> {
   }
   const holdsMatch = (holder: Holder) => holder.endings.some((ending) => matches.has(ending));
   const ordered = [...listed.filter(holdsMatch), ...listed.filter((holder) => !holdsMatch(holder))];
-  const spell = fromUuidSync(flag.originUuid, { strict: false })?.name ?? localize('unknownSpell');
+  const origin = fromUuidSync(flag.originUuid, { strict: false });
+  const spell =
+    (origin && 'name' in origin && typeof origin.name === 'string' ? origin.name : null) ??
+    localize(flag.kind === 'spell' ? 'unknownSpell' : 'unknownTarget');
   const chosen = await CounteractApplyApp.choose({
     spell,
     matched: matches.size > 0,
@@ -180,7 +184,8 @@ function chosenEndings(flag: CounteractFlag): Promise<Ending[] | null> {
     case 'effect':
       return cardEffect(flag);
     case 'spell':
-      return spellEndings(flag);
+    case 'card':
+      return originEndings(flag);
   }
 }
 

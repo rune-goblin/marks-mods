@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEGREE,
+  LEVELS,
+  anyCounteractCard,
   applyControl,
   asDegree,
+  cardCounteractLevel,
   casterSpellDC,
   counteractReach,
   counteracts,
@@ -14,6 +17,9 @@ import {
   isEffectLevelClear,
   isSpellEffect,
   levelBasedDC,
+  levelForRank,
+  levelMatching,
+  rankForLevel,
   conditionSlugsIn,
   matchesSpell,
   needsPicker,
@@ -387,6 +393,110 @@ describe('levelBasedDC', () => {
   });
 });
 
+describe('anyCounteractCard', () => {
+  const messageUuid = 'ChatMessage.note';
+
+  it("takes the card's item as its origin", () => {
+    expect(anyCounteractCard({ itemUuid: 'Actor.ogre.Item.roar', actorUuid: 'Actor.ogre', messageUuid })).toEqual({
+      kind: 'card',
+      originUuid: 'Actor.ogre.Item.roar',
+      actorUuid: 'Actor.ogre',
+    });
+  });
+
+  it('falls back to the speaker without an item', () => {
+    expect(anyCounteractCard({ actorUuid: 'Actor.ogre', messageUuid }).originUuid).toBe('Actor.ogre');
+  });
+
+  it('falls back to the message without an item or speaker', () => {
+    expect(anyCounteractCard({ itemUuid: null, actorUuid: null, messageUuid })).toEqual({
+      kind: 'card',
+      originUuid: messageUuid,
+      actorUuid: '',
+    });
+  });
+});
+
+describe('levels and ranks', () => {
+  it('spans the level-based DC table', () => {
+    expect(LEVELS[0]).toBe(-1);
+    expect(LEVELS.at(-1)).toBe(25);
+    expect(LEVELS).toHaveLength(27);
+  });
+
+  it.each([
+    [-1, 0],
+    [0, 0],
+    [1, 1],
+    [2, 1],
+    [7, 4],
+    [20, 10],
+  ])('level %i counteracts at rank %i', (level, rank) => {
+    expect(rankForLevel(level)).toBe(rank);
+  });
+
+  it.each([
+    [0, 0],
+    [1, 1],
+    [3, 5],
+    [10, 19],
+  ])('rank %i comes from level %i', (rank, level) => {
+    expect(levelForRank(rank)).toBe(level);
+  });
+
+  it.each([
+    [1, 15],
+    [2, 18],
+    [3, 20],
+    [9, 36],
+    [10, 39],
+  ])("matches GM Core's DC for a rank %i spell, %i", (rank, dc) => {
+    expect(levelBasedDC(levelForRank(rank))).toBe(dc);
+  });
+});
+
+describe('levelMatching', () => {
+  it('finds the level behind a level-based rank and DC', () => {
+    expect(levelMatching({ rank: 4, dc: 23 })).toBe(7);
+  });
+
+  it("is null for a caster's DC off the table", () => {
+    expect(levelMatching({ rank: 3, dc: 25 })).toBeNull();
+  });
+
+  it('is null when the rank disagrees with the DC', () => {
+    expect(levelMatching({ rank: 1, dc: 23 })).toBeNull();
+  });
+
+  it('is null without a rank or DC', () => {
+    expect(levelMatching({ rank: null, dc: 15 })).toBeNull();
+  });
+});
+
+describe('cardCounteractLevel', () => {
+  it("prefers the item's level", () => {
+    expect(cardCounteractLevel({ itemLevel: 6, creatureLevel: 10, fallbackLevel: 3 })).toEqual({
+      level: 6,
+      basis: 'item',
+    });
+  });
+
+  it("uses the creature's level without an item level", () => {
+    expect(cardCounteractLevel({ itemLevel: null, creatureLevel: 10, fallbackLevel: 3 })).toEqual({
+      level: 10,
+      basis: 'creature',
+    });
+  });
+
+  it('uses the fallback level with neither', () => {
+    expect(cardCounteractLevel({ fallbackLevel: 3 })).toEqual({ level: 3, basis: 'fallback' });
+  });
+
+  it('keeps a level of 0', () => {
+    expect(cardCounteractLevel({ itemLevel: 0, fallbackLevel: 3 }).level).toBe(0);
+  });
+});
+
 describe('counteracts', () => {
   it.each([
     ['critical success', DEGREE.criticalSuccess, 7, true],
@@ -488,6 +598,10 @@ describe('readCounteractFlag', () => {
   it('keeps the applied state and undo record', () => {
     const undo: UndoEntry[] = [{ actorUuid: 'Actor.goblin', effectId: 'slowed', previousStage: 2 }];
     expect(readCounteractFlag({ ...rolledFlag, applied: true, undo })).toMatchObject({ applied: true, undo });
+  });
+
+  it("reads a GM's counteract of any card", () => {
+    expect(readCounteractFlag({ ...rolledFlag, kind: 'card' })?.kind).toBe('card');
   });
 
   it('reads an unknown degree as none', () => {
