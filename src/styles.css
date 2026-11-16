@@ -6,7 +6,8 @@
    stacking: without this it falls into the page flow beside the sidebar. */
 .marks-mods-barrage,
 .marks-mods-counteract,
-.marks-mods-xp {
+.marks-mods-xp,
+.marks-mods-sell {
   position: fixed;
   z-index: 100;
   width: max-content;
@@ -154,4 +155,17 @@
 }
 .chat-message .marks-mods-counteract-reach td.rolled {
   border-top: none;
+}
+
+/* The party stash's sell column. PF2e caps the controls at 3.5rem; the header's matching cell
+   widens too so the Value, Quantity and Bulk headings stay over their columns. */
+.sheet.party .inventory .item-controls:not(.readonly) {
+  flex-basis: 5.75rem;
+  max-width: 5.75rem;
+}
+.sheet.party .inventory .item-controls .marks-mods-sell-button {
+  margin: 0 0.5rem;
+}
+.sheet.party .inventory .item-controls .marks-mods-sell-button:hover {
+  color: #b8860b;
 }

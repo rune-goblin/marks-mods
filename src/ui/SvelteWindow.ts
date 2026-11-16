@@ -25,6 +25,17 @@ export abstract class SvelteWindow extends ApplicationV2 {
     });
   }
 
+  /** Foundry raises only framed windows, so without this a frameless one opens behind any open sheet. */
+  override bringToFront(): void {
+    const stack = ApplicationV2 as unknown as { _maxZ: number };
+    this.element.style.zIndex = String(++stack._maxZ);
+  }
+
+  protected override _attachFrameListeners(): void {
+    super._attachFrameListeners();
+    this.element.addEventListener('pointerdown', () => this.bringToFront(), { capture: true });
+  }
+
   override close(options?: foundry.applications.ApplicationClosingOptions): Promise<this> {
     return super.close({ ...options, animate: false }) as Promise<this>;
   }

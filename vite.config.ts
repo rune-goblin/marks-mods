@@ -12,7 +12,21 @@ export default defineConfig({
   root: 'src/',
   base: `/modules/${id}/dist/`,
   // root is src/, so point the plugin at the repo-root config (shared with svelte-check).
-  plugins: [svelte({ configFile: fileURLToPath(new URL('./svelte.config.ts', import.meta.url)) })],
+  plugins: [
+    svelte({ configFile: fileURLToPath(new URL('./svelte.config.ts', import.meta.url)) }),
+    {
+      // In dev the styles arrive through index.ts's CSS import, with HMR. Foundry still requests
+      // the built stylesheet module.json lists; answer with an empty one in place of a 404.
+      name: 'dev-empty-stylesheet',
+      apply: 'serve',
+      configureServer(server) {
+        server.middlewares.use(`/modules/${id}/dist/${id}.css`, (_req, res) => {
+          res.setHeader('Content-Type', 'text/css');
+          res.end('');
+        });
+      },
+    },
+  ],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

@@ -4,6 +4,7 @@ import { MODULE_ID } from './constants';
 import { registerSettings } from './settings';
 import { registerCounteract } from './counteract';
 import { registerGlimpse } from './glimpse';
+import { registerSell } from './sell';
 import { awardXp, openAwardXp, registerXp, sparklePCs } from './xp';
 
 interface ModuleApi {
@@ -18,6 +19,7 @@ registerBarrage();
 registerGlimpse();
 registerCounteract();
 registerXp();
+registerSell();
 
 Hooks.once('init', () => {
   console.log(`${MODULE_ID} | init`);

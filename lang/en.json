@@ -194,6 +194,36 @@
       "awardXpOnCombatEnd": {
         "name": "Award XP when combat ends",
         "hint": "Opens the Award Party XP window for the GM as soon as combat ends, set to the XP PF2e calculates for that encounter."
+      },
+      "sellPercent": {
+        "name": "Sell percentage",
+        "hint": "The share of an item's value the party gets when it sells from the party stash. Treasure such as gems and art objects always sells at full value."
+      }
+    },
+    "sell": {
+      "tooltip": {
+        "click": "Sell at {percent}%",
+        "shiftClick": "Shift-click to change %",
+        "altClick": "Alt-click to sell all",
+        "optionClick": "Option-click to sell all"
+      },
+      "label": "Sell {name}",
+      "title": "Sell {name}",
+      "count": "How many? (of {max})",
+      "fewer": "One fewer",
+      "more": "One more",
+      "all": "All",
+      "price": "Price, as a percentage of value",
+      "each": "({value} each)",
+      "atPercent": "Sells at {percent}% of value ({value} each).",
+      "total": "You get",
+      "confirm": "Sell {count}",
+      "enter": "Choose an amount",
+      "cancel": "Cancel",
+      "sold": "Sold {count} × {name} for {value}.",
+      "warn": {
+        "gone": "{name} is no longer in the stash.",
+        "noValue": "{name} has no value. Shift-click to set a price."
       }
     }
   }
